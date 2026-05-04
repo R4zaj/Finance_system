@@ -4,7 +4,7 @@
 // Read from Environment Variables (set by Render or your local server)
 $host     = getenv('DB_HOST') ?: 'localhost';
 $port     = getenv('DB_PORT') ?: '3306';
-$dbname   = getenv('DB_NAME') ?: 'finance_system';
+$dbname   = getenv('DB_NAME') ?: 'defaultdb';
 $user     = getenv('DB_USER') ?: 'root';
 $password = getenv('DB_PASS') ?: '';
 
