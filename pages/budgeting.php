@@ -1,0 +1,135 @@
+<?php
+// pages/budgeting.php
+session_start();
+if (!isset($_SESSION['user_id'])) { header("Location: ../login.php"); exit(); }
+?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Budget Management | Finance System</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <style>
+        .card-custom { border: none; border-radius: 1rem; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+        .action-banner { background: linear-gradient(135deg, #114227 0%, #1a5632 100%); color: white; border-radius: 1rem; }
+        .table-custom th { font-size: 0.75rem; text-transform: uppercase; color: #6c757d; }
+    </style>
+</head>
+<body class="d-flex vh-100 bg-light">
+
+    <?php include '../includes/sidebar.php'; ?>
+
+    <div class="flex-grow-1 d-flex flex-column overflow-hidden">
+        <?php include '../includes/topheader.php'; ?>
+
+        <main class="p-4 overflow-y-auto">
+            
+            <div class="card action-banner p-4 mb-4 border-0 shadow">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h3 class="fw-bold"><i class="bi bi-wallet2 me-2"></i> Budget Management</h3>
+                        <p class="mb-0 opacity-75">Allocate departmental funds and track encumbrances (reservations).</p>
+                    </div>
+                    <button class="btn btn-light fw-bold text-success shadow-sm" data-bs-toggle="modal" data-bs-target="#allocateModal">
+                        <i class="bi bi-plus-circle me-2"></i> Allocate Budget
+                    </button>
+                </div>
+            </div>
+
+            <!-- College-Wide Summary -->
+            <div class="row g-4 mb-4">
+                <div class="col-md-3">
+                    <div class="card card-custom p-3 border-start border-primary border-4">
+                        <small class="text-muted text-uppercase fw-bold">Total Allocated</small>
+                        <h4 id="tot-allocated" class="fw-bold">₱0.00</h4>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card card-custom p-3 border-start border-warning border-4">
+                        <small class="text-muted text-uppercase fw-bold">Total Reserved (POs)</small>
+                        <h4 id="tot-reserved" class="fw-bold">₱0.00</h4>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card card-custom p-3 border-start border-danger border-4">
+                        <small class="text-muted text-uppercase fw-bold">Total Actual Spent</small>
+                        <h4 id="tot-spent" class="fw-bold">₱0.00</h4>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card card-custom p-3 border-start border-success border-4">
+                        <small class="text-muted text-uppercase fw-bold">Total Available</small>
+                        <h4 id="tot-available" class="fw-bold">₱0.00</h4>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Departmental Budget Table -->
+            <div class="card card-custom shadow-sm p-0">
+                <div class="card-header bg-white p-3 border-bottom">
+                    <h6 class="fw-bold mb-0">Departmental Budget vs Actuals</h6>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover table-custom align-middle mb-0">
+                        <thead class="bg-light">
+                            <tr>
+                                <th>Department</th>
+                                <th>Allocated</th>
+                                <th>Reserved (Encumbered)</th>
+                                <th>Actual Spent</th>
+                                <th>Available Balance</th>
+                                <th>Utilization</th>
+                                <th class="text-end">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="budgetTableBody">
+                            <tr><td colspan="7" class="text-center py-4">Loading budgets...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Allocate Budget Modal -->
+    <div class="modal fade" id="allocateModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content card-custom">
+                <div class="modal-header border-0">
+                    <h5 class="fw-bold">Set Department Allocation</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form id="allocateForm">
+                    <div class="modal-body bg-light">
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold">Fiscal Year</label>
+                            <input type="number" class="form-control" id="fiscal_year" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold">Department</label>
+                            <select class="form-select" id="dept_id" required>
+                                <!-- Example static data, in production populate via AJAX -->
+                                <option value="1">IT Department</option>
+                                <option value="2">HR Department</option>
+                                <option value="3">Facilities & Maintenance</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold">Allocated Amount (₱)</label>
+                            <input type="number" step="0.01" class="form-control" id="allocated_amount" required>
+                        </div>
+                    </div>
+                    <div class="modal-footer border-0">
+                        <button type="submit" class="btn btn-success w-100 fw-bold">Save Allocation</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="../assets/js/budgeting.js"></script>
+</body>
+</html>
