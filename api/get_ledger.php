@@ -9,7 +9,7 @@ if (!isset($_SESSION['user_id'])) {
     exit();
 }
 
-require_once '../includes/db.php'; // Updated path based on your structure
+require_once '../includes/db.php'; 
 
 try {
     // Join transactions with accounts to get the account name and type
@@ -21,7 +21,7 @@ try {
               
     $stmt = $pdo->prepare($query);
     $stmt->execute();
-    $ledger = $stmt->fetchAll();
+    $ledger = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     echo json_encode([
         "status" => "success",
@@ -29,7 +29,11 @@ try {
     ]);
 
 } catch (PDOException $e) {
-    http_response_code(500);
-    echo json_encode(["status" => "error", "message" => $e->getMessage()]);
+    // TEMPORARY FIX: Return a 200 OK status so jQuery doesn't ignore the error message!
+    http_response_code(200); 
+    echo json_encode([
+        "status" => "error", 
+        "message" => "SQL ERROR: " . $e->getMessage()
+    ]);
 }
 ?>
