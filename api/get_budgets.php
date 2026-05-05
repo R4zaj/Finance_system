@@ -42,7 +42,8 @@ try {
     echo json_encode(['success' => true, 'year' => $year, 'data' => $departments]);
 
 } catch (PDOException $e) {
-    http_response_code(500);
+    // FIX: Send a 200 OK so the browser lets us read the SQL error message!
+    http_response_code(200); 
     echo json_encode(['success' => false, 'message' => 'Database error: ' . $e->getMessage()]);
 }
 ?>
