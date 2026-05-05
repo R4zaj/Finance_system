@@ -10,40 +10,26 @@ if (!isset($_SESSION['user_id'])) {
 }
 
 require_once '../includes/db.php';
-$year = $_GET['year'] ?? date('Y');
+$year = isset($_GET['year']) ? $_GET['year'] : date('Y');
 
 try {
-    // Calculate Allocated and Actual Spent using the exact provided schema constraints
-    $query = "
-        SELECT 
-            d.department_id,
-            d.name as department_name,
-            COALESCE(b.allocated_amount, 0) as allocated,
-            
-            -- Actual Spent: Calculated via Departmental Payroll 
-            -- (Joining employee_payments -> employees -> departments)
-            (SELECT COALESCE(SUM(ep.gross_amount), 0) 
-             FROM employee_payments ep
-             JOIN employees e ON ep.employee_id = e.employee_id
-             WHERE e.department_id = d.department_id AND YEAR(ep.pay_date) = :year) as actual_spent,
-             
-            -- Reserved: Set to 0 because purchase_orders is not tied to departments in the current DB
-            0 as reserved
-             
-        FROM departments d
-        LEFT JOIN budgets b ON d.department_id = b.department_id AND b.year = :year
-        ORDER BY d.name ASC
-    ";
+    // Notice :year1 and :year2 below!
+    $query = "SELECT d.department_id, d.name as department_name, COALESCE(b.allocated_amount, 0) as allocated, (SELECT COALESCE(SUM(ep.gross_amount), 0) FROM employee_payments ep JOIN employees e ON ep.employee_id = e.employee_id WHERE e.department_id = d.department_id AND YEAR(ep.pay_date) = :year1) as actual_spent, 0 as reserved FROM departments d LEFT JOIN budgets b ON d.department_id = b.department_id AND b.year = :year2 ORDER BY d.name ASC";
 
     $stmt = $pdo->prepare($query);
-    $stmt->execute(['year' => $year]);
+    
+    // We hand the year to BOTH placeholders to satisfy strict mode
+    $stmt->execute([
+        'year1' => $year,
+        'year2' => $year
+    ]);
+    
     $departments = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     echo json_encode(['success' => true, 'year' => $year, 'data' => $departments]);
 
 } catch (PDOException $e) {
-    // FIX: Send a 200 OK so the browser lets us read the SQL error message!
-    http_response_code(200); 
+    http_response_code(500); 
     echo json_encode(['success' => false, 'message' => 'Database error: ' . $e->getMessage()]);
 }
 ?>
