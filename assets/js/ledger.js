@@ -1,100 +1,123 @@
 // assets/js/ledger.js
 
 $(document).ready(function() {
-    loadLedgerData();
+    // Load the ledger data immediately when the page loads
+    loadLedger();
 
-    // Set today's date safely on load
-    const today = new Date().toISOString().split('T')[0];
-    $('#trans_date').val(today);
-
-    // Handle Manual Entry Form Submission
-    $('#journalEntryForm').on('submit', function(e) {
-        e.preventDefault();
-        
-        const payload = {
-            trans_date: $('#trans_date').val(),
-            amount: parseFloat($('#amount').val()),
-            debit_account: $('#debit_account').val(),
-            credit_account: $('#credit_account').val(),
-            department_id: $('#department_id').val(),
-            description: $('#description').val()
-        };
-
-        $.ajax({
-            url: '../api/process_journal_entry.php',
-            type: 'POST',
-            contentType: 'application/json',
-            data: JSON.stringify(payload),
-            success: function(response) {
-                if (response.success) {
-                    $('#entryModal').modal('hide');
-                    $('#journalEntryForm')[0].reset();
-                    $('#trans_date').val(today); // Reset date
-                    loadLedgerData(); // Refresh table
-                } else {
-                    alert("Error: " + response.message);
-                }
-            }
+    // Make the search bar functional
+    $('input[placeholder="Search entries..."]').on('keyup', function() {
+        let value = $(this).val().toLowerCase();
+        $("#ledgerTableBody tr").filter(function() {
+            // Don't filter out the error/empty messages
+            if ($(this).find('td').length === 1) return;
+            $(this).toggle($(this).text().toLowerCase().indexOf(value) > -1)
         });
     });
 });
 
-function loadLedgerData() {
+function loadLedger() {
+    const $tbody = $('#ledgerTableBody');
+    
+    // Show loading state (just in case it's not already there)
+    $tbody.html(`
+        <tr>
+            <td colspan="6" class="text-center py-4 text-muted">
+                <div class="spinner-border text-success spinner-border-sm me-2" role="status"></div>
+                Initializing ledger...
+            </td>
+        </tr>
+    `);
+
     $.ajax({
         url: '../api/get_ledger.php',
         type: 'GET',
         dataType: 'json',
         success: function(response) {
-            if (response.success) {
-                renderLedgerTable(response.transactions);
-                populateDropdowns(response.accounts, response.departments);
+            $tbody.empty();
+
+            if (response.status === 'success') {
+                if (response.data.length > 0) {
+                    
+                    // Helper to format currency
+                    const fmtCurrency = (num) => {
+                        let parsed = parseFloat(num);
+                        if (isNaN(parsed)) return '-';
+                        return new Intl.NumberFormat('en-PH', { 
+                            style: 'currency', 
+                            currency: 'PHP' 
+                        }).format(parsed);
+                    };
+
+                    // Helper to format date cleanly (e.g., Oct 24, 2026)
+                    const fmtDate = (dateStr) => {
+                        if (!dateStr) return '-';
+                        let d = new Date(dateStr);
+                        return d.toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' });
+                    };
+
+                    // Helper to map database account types to your custom CSS classes
+                    const getBadgeClass = (type) => {
+                        const t = (type || '').toLowerCase();
+                        if (t.includes('asset')) return 'badge-asset';
+                        if (t.includes('liabilit')) return 'badge-liability';
+                        if (t.includes('equity')) return 'badge-equity';
+                        if (t.includes('revenue') || t.includes('income')) return 'badge-revenue';
+                        if (t.includes('expense')) return 'badge-expense';
+                        return 'bg-secondary text-white'; // Fallback
+                    };
+
+                    // Loop through the data and build the rows
+                    $.each(response.data, function(i, entry) {
+                        // Figure out if the amount goes in the Debit or Credit column
+                        let isDebit = (entry.trans_type === 'Debit');
+                        let debitText = isDebit ? fmtCurrency(entry.amount) : '';
+                        let creditText = !isDebit ? fmtCurrency(entry.amount) : '';
+                        
+                        let badgeClass = getBadgeClass(entry.account_type);
+
+                        $tbody.append(`
+                            <tr>
+                                <td class="text-muted small">${fmtDate(entry.trans_date)}</td>
+                                <td class="fw-bold text-dark">${entry.account_name}</td>
+                                <td><span class="badge ${badgeClass} rounded-pill px-3">${entry.account_type}</span></td>
+                                <td class="text-muted text-truncate" style="max-width: 250px;">${entry.description || '-'}</td>
+                                <td class="text-end fw-semibold text-dark">${debitText}</td>
+                                <td class="text-end fw-semibold text-dark">${creditText}</td>
+                            </tr>
+                        `);
+                    });
+                } else {
+                    $tbody.append(`
+                        <tr>
+                            <td colspan="6" class="text-center py-5 text-muted">
+                                <i class="bi bi-journal-x fs-2 d-block mb-2 opacity-50"></i>
+                                No ledger entries found. Click "New Entry" to start.
+                            </td>
+                        </tr>
+                    `);
+                }
+            } else {
+                // 🚨 THIS IS THE MAGIC ERROR CATCHER 🚨
+                // If PHP sends an error message (like a missing table), it prints right here!
+                $tbody.append(`
+                    <tr>
+                        <td colspan="6" class="text-center py-4 text-danger fw-bold bg-danger bg-opacity-10">
+                            <i class="bi bi-exclamation-triangle-fill me-2"></i> ${response.message}
+                        </td>
+                    </tr>
+                `);
             }
+        },
+        error: function(xhr, status, error) {
+            // This catches massive server crashes (like 500 errors) or dropped internet
+            console.error("AJAX Error:", xhr.responseText);
+            $tbody.html(`
+                <tr>
+                    <td colspan="6" class="text-center py-4 text-danger fw-bold bg-danger bg-opacity-10">
+                        <i class="bi bi-wifi-off me-2"></i> Failed to connect to the database. Check console for details.
+                    </td>
+                </tr>
+            `);
         }
     });
-}
-
-function renderLedgerTable(transactions) {
-    const $tbody = $('#ledgerTableBody');
-    $tbody.empty();
-
-    if (transactions.length === 0) {
-        $tbody.append('<tr><td colspan="5" class="text-center py-4">No transactions found.</td></tr>');
-        return;
-    }
-
-    const fmt = (num) => '₱' + parseFloat(num).toLocaleString('en-PH', { minimumFractionDigits: 2 });
-
-    $.each(transactions, function(i, t) {
-        const badge = t.type === 'Credit' ? 'bg-success' : 'bg-danger';
-        const dept = t.department_name ? `<br><small class="text-muted"><i class="bi bi-building"></i> ${t.department_name}</small>` : '';
-        
-        $tbody.append(`
-            <tr>
-                <td>${t.trans_date}</td>
-                <td class="fw-bold">${t.account_name}</td>
-                <td><span class="badge ${badge} bg-opacity-10 text-${t.type === 'Credit' ? 'success' : 'danger'} px-2 py-1">${t.type}</span></td>
-                <td class="fw-bold text-${t.type === 'Credit' ? 'success' : 'danger'}">${fmt(t.amount)}</td>
-                <td>${t.description} ${dept}</td>
-            </tr>
-        `);
-    });
-}
-
-function populateDropdowns(accounts, departments) {
-    const $drSelect = $('#debit_account');
-    const $crSelect = $('#credit_account');
-    const $deptSelect = $('#department_id');
-
-    // Only populate if they are currently empty to prevent duplicates on refresh
-    if ($drSelect.children().length <= 1) {
-        $.each(accounts, function(i, a) {
-            const opt = `<option value="${a.account_id}">${a.name} (${a.type})</option>`;
-            $drSelect.append(opt);
-            $crSelect.append(opt);
-        });
-
-        $.each(departments, function(i, d) {
-            $deptSelect.append(`<option value="${d.department_id}">${d.name}</option>`);
-        });
-    }
 }
