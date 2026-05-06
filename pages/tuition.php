@@ -35,8 +35,8 @@ if (!isset($_SESSION['user_id'])) { header("Location: ../login.php"); exit(); }
                     
                     <!-- Buttons placed clearly in the banner -->
                     <div class="d-flex gap-2">
-                        <button class="btn btn-warning fw-bold text-dark shadow-sm" data-bs-toggle="modal" data-bs-target="#enrollmentModal">
-                            <i class="bi bi-shield-check me-1"></i> Enrollment Approval
+                        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#approvalModal" id="btnOpenApprovals">
+                            <i class="bi bi-person-check me-1"></i> Enrollment Approval
                         </button>
                         
                         <button class="btn btn-light fw-bold text-success shadow-sm" data-bs-toggle="modal" data-bs-target="#paymentModal">
@@ -110,13 +110,13 @@ if (!isset($_SESSION['user_id'])) { header("Location: ../login.php"); exit(); }
                     <div class="modal-footer border-0 pt-0">
                         <button type="submit" class="btn btn-success w-100 fw-bold" style="background-color: #1a5632;">Process Payment</button>
                     </div>
-                
                 </form>
             </div>
         </div>
     </div>
+
     <!-- Enrollment Clearance Modal -->
-    <div class="modal fade" id="enrollmentModal" tabindex="-1">
+    <div class="modal fade" id="approvalModal" tabindex="-1">
         <div class="modal-dialog modal-xl">
             <div class="modal-content card-custom">
                 <div class="modal-header border-0 pb-0">
@@ -132,12 +132,10 @@ if (!isset($_SESSION['user_id'])) { header("Location: ../login.php"); exit(); }
                             <table class="table table-hover align-middle mb-0 bg-white">
                                 <thead class="bg-light">
                                     <tr>
-                                        <th class="small text-muted text-uppercase">Ref / Term</th>
-                                        <th class="small text-muted text-uppercase">Student Info</th>
-                                        <th class="small text-muted text-uppercase">Program Details</th>
-                                        <th class="small text-muted text-uppercase text-end">Total Assessment</th>
-                                        <th class="small text-muted text-uppercase">Status</th>
-                                        <th class="small text-muted text-uppercase text-end">Action</th>
+                                        <th class="ps-4">Student Name</th>
+                                        <th>Email Address</th>
+                                        <th>Status</th>
+                                        <th class="text-end pe-4">Action</th>
                                     </tr>
                                 </thead>
                                 <tbody id="pendingEnrollmentsBody">
@@ -154,10 +152,89 @@ if (!isset($_SESSION['user_id'])) { header("Location: ../login.php"); exit(); }
         </div>
     </div>
 
-    <!-- Initialization Script for Date -->
-    <script>document.getElementById('pay_date').valueAsDate = new Date();</script>
+    <!-- 1. External Libraries First -->
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- 2. External Custom Scripts -->
     <script src="../assets/js/tuition.js"></script>
+
+    <!-- 3. Inline Logic -->
+    <script>
+    $(document).ready(function() {
+        // Load pending enrollments when the button is clicked
+        $('#btnOpenApprovals').on('click', function() {
+            loadPendingEnrollments();
+        });
+
+        function loadPendingEnrollments() {
+            $('#pendingEnrollmentsBody').html('<tr><td colspan="4" class="text-center py-4"><span class="spinner-border spinner-border-sm me-2"></span>Loading...</td></tr>');
+            
+            $.ajax({
+                url: '../api/get_pending_enrollments.php',
+                type: 'GET',
+                dataType: 'json',
+                success: function(response) {
+                    let html = '';
+                    if (response.success && response.data.length > 0) {
+                        $.each(response.data, function(i, student) {
+                            html += `
+                                <tr>
+                                    <td class="ps-4 fw-semibold">${student.first_name} ${student.last_name}</td>
+                                    <td class="text-muted small">${student.email}</td>
+                                    <td><span class="badge bg-warning text-dark">Pending</span></td>
+                                    <td class="text-end pe-4">
+                                        <button class="btn btn-sm btn-success btn-approve" data-id="${student.student_id}">
+                                            <i class="bi bi-check-lg"></i> Approve
+                                        </button>
+                                    </td>
+                                </tr>
+                            `;
+                        });
+                    } else {
+                        html = '<tr><td colspan="4" class="text-center py-4 text-muted">No pending enrollments to approve.</td></tr>';
+                    }
+                    $('#pendingEnrollmentsBody').html(html);
+                }
+            });
+        }
+
+        // Handle the "Approve" button click inside the modal
+        $(document).on('click', '.btn-approve', function() {
+            let studentId = $(this).data('id');
+            let $btn = $(this);
+            
+            $btn.html('<span class="spinner-border spinner-border-sm"></span>').prop('disabled', true);
+
+            $.ajax({
+                url: '../api/approve_enrollment.php',
+                type: 'POST',
+                data: JSON.stringify({ student_id: studentId }),
+                contentType: 'application/json',
+                success: function(response) {
+                    if (response.success) {
+                        // Remove the row from the table with a nice fade effect
+                        $btn.closest('tr').fadeOut(300, function() {
+                            $(this).remove();
+                            // If table is empty, show the "No pending" message
+                            if ($('#pendingEnrollmentsBody tr').length === 0) {
+                                $('#pendingEnrollmentsBody').html('<tr><td colspan="4" class="text-center py-4 text-muted">No pending enrollments to approve.</td></tr>');
+                            }
+                        });
+                    } else {
+                        alert('Error: ' + response.message);
+                        $btn.html('<i class="bi bi-check-lg"></i> Approve').prop('disabled', false);
+                    }
+                }
+            });
+        });
+    });
+
+    // Initialization Script for Date Input
+    let payDateInput = document.getElementById('pay_date');
+    if (payDateInput) {
+        payDateInput.valueAsDate = new Date();
+    }
+    </script>
 </body>
 </html>
