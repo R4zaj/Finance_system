@@ -4,40 +4,34 @@ session_start();
 header('Content-Type: application/json; charset=UTF-8');
 require_once '../includes/db.php';
 
-$data = json_decode(file_get_contents("php://input"));
-
-if (empty($data->trans_date) || empty($data->amount) || empty($data->debit_account) || empty($data->credit_account) || empty($data->description)) {
+// 1. Read from standard $_POST
+if (empty($_POST['trans_date']) || empty($_POST['amount']) || empty($_POST['account_id']) || empty($_POST['trans_type']) || empty($_POST['description'])) {
     echo json_encode(['success' => false, 'message' => 'Please fill in all required fields.']);
     exit();
 }
 
-if ($data->debit_account == $data->credit_account) {
-    echo json_encode(['success' => false, 'message' => 'Debit and Credit accounts cannot be the same.']);
-    exit();
-}
-
-$dept_id = !empty($data->department_id) ? $data->department_id : null;
+// 2. Map the fields
+$trans_date = $_POST['trans_date'];
+$amount = $_POST['amount'];
+$account_id = $_POST['account_id'];
+$trans_type = $_POST['trans_type']; // 'Debit' or 'Credit'
+$description = $_POST['description'];
 
 try {
-    $pdo->beginTransaction();
-
-    // 1. Insert DEBIT Entry
-    $stmtDebit = $pdo->prepare("INSERT INTO transactions (account_id, department_id, trans_date, amount, type, description) VALUES (:acc, :dept, :tdate, :amt, 'Debit', :desc)");
-    $stmtDebit->execute([
-        'acc' => $data->debit_account, 'dept' => $dept_id, 'tdate' => $data->trans_date, 'amt' => $data->amount, 'desc' => "Manual Entry: " . $data->description
+    // 3. Insert the entry (Removed department_id from the query!)
+    $stmt = $pdo->prepare("INSERT INTO transactions (account_id, trans_date, amount, type, description) VALUES (:acc, :tdate, :amt, :ttype, :desc)");
+    
+    $stmt->execute([
+        'acc' => $account_id, 
+        'tdate' => $trans_date, 
+        'amt' => $amount, 
+        'ttype' => $trans_type,
+        'desc' => "Manual Entry: " . $description
     ]);
 
-    // 2. Insert CREDIT Entry
-    $stmtCredit = $pdo->prepare("INSERT INTO transactions (account_id, department_id, trans_date, amount, type, description) VALUES (:acc, :dept, :tdate, :amt, 'Credit', :desc)");
-    $stmtCredit->execute([
-        'acc' => $data->credit_account, 'dept' => $dept_id, 'tdate' => $data->trans_date, 'amt' => $data->amount, 'desc' => "Manual Entry: " . $data->description
-    ]);
-
-    $pdo->commit();
     echo json_encode(['success' => true, 'message' => 'Journal entry posted successfully.']);
 
 } catch (Exception $e) {
-    $pdo->rollBack();
     echo json_encode(['success' => false, 'message' => 'Transaction failed: ' . $e->getMessage()]);
 }
 ?>
