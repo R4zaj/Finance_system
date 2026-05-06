@@ -78,22 +78,24 @@ if (!isset($_SESSION['user_id'])) {
         <main class="p-3 p-md-4 overflow-y-auto bg-light" style="height: calc(100vh - 70px);">
             
             <!-- Page Header & Actions -->
+           <!-- Page Header & Actions -->
             <div class="card border-0 mb-4 action-banner shadow-sm">
                 <div class="card-body p-4 d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
                     <div>
                         <h3 class="fw-bold mb-1"><i class="bi bi-journal-text me-2"></i> Accounting & Ledgers</h3>
                         <p class="mb-0 text-white-50">Manage your Chart of Accounts and view recent General Ledger entries.</p>
                     </div>
+                    <!-- We wrap the buttons in a flex container so they sit next to each other -->
                     <div class="d-flex gap-2">
-                        <button class="btn btn-light fw-semibold text-success shadow-sm">
+                        <button class="btn btn-light fw-semibold text-success shadow-sm" data-bs-toggle="modal" data-bs-target="#newEntryModal">
                             <i class="bi bi-plus-lg me-1"></i> New Entry
                         </button>
-                        <button class="btn btn-outline-light fw-semibold">
+                        <button class="btn btn-outline-light fw-semibold" id="btnExport">
                             <i class="bi bi-download me-1"></i> Export
                         </button>
                     </div>
-                </div>
-            </div>
+                </div> <!-- Closes card-body -->
+            </div> <!-- Closes the green action-banner -->
 
             <!-- Main Content Area -->
             <div class="row g-4">
