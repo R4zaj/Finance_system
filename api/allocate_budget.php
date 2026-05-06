@@ -12,21 +12,24 @@ if (empty($data->department_id) || empty($data->year) || !isset($data->amount)) 
 }
 
 try {
-    // UPSERT: Insert new budget or update existing one for that year/department
+    // UPSERT: We use :amount1 and :amount2 to satisfy strict mode!
     $stmt = $pdo->prepare("
         INSERT INTO budgets (department_id, year, allocated_amount) 
-        VALUES (:dept_id, :year, :amount)
-        ON DUPLICATE KEY UPDATE allocated_amount = :amount
+        VALUES (:dept_id, :year, :amount1)
+        ON DUPLICATE KEY UPDATE allocated_amount = :amount2
     ");
     
+    // We pass the amount twice to match the two placeholders
     $stmt->execute([
         'dept_id' => $data->department_id,
         'year'    => $data->year,
-        'amount'  => $data->amount
+        'amount1' => $data->amount,
+        'amount2' => $data->amount
     ]);
 
     echo json_encode(['success' => true, 'message' => 'Budget allocated successfully.']);
 } catch (PDOException $e) {
-    echo json_encode(['success' => false, 'message' => 'Database error.']);
+    // We expose the real error message now so it can't hide from us!
+    echo json_encode(['success' => false, 'message' => 'Database error: ' . $e->getMessage()]);
 }
 ?>
