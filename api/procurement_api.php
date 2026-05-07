@@ -3,79 +3,81 @@
 session_start();
 header('Content-Type: application/json; charset=UTF-8');
 
-// Security Check
-if (!isset($_SESSION['user_id'])) {
-    http_response_code(401);
-    echo json_encode(['status' => 'error', 'message' => 'Unauthorized']);
-    exit();
-}
+// Note: You might not even need db.php anymore if this file only talks to the external API!
+require_once '../includes/db.php'; 
 
-require_once '../includes/db.php';
-$action = $_REQUEST['action'] ?? '';
+$action = isset($_GET['action']) ? $_GET['action'] : '';
 
-// Fetch Pending/Draft Purchase Orders
-if ($action === 'get_pending') {
-    try {
-        $stmt = $pdo->query("
-            SELECT p.po_id, s.name as supplier_name, p.order_date, p.total_amount, p.status 
-            FROM purchase_orders p
-            JOIN suppliers s ON p.supplier_id = s.supplier_id
-            WHERE p.status IN ('Draft', 'Ordered')
-            ORDER BY p.order_date DESC, p.po_id DESC
-        ");
-        $pending_pos = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        
-        echo json_encode(['status' => 'success', 'data' => $pending_pos]);
-    } catch (PDOException $e) {
-        echo json_encode(['status' => 'error', 'message' => 'Database error: ' . $e->getMessage()]);
+// ---------------------------------------------------------
+// ACTION 1: FETCH POs FROM EXTERNAL INVENTORY SYSTEM
+// ---------------------------------------------------------
+if ($action === 'get_pos') {
+    $url = "https://icis-inventory.onrender.com/includes/api/api.php?action=get_pos";
+    
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false); 
+    
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($httpCode === 200 && $response) {
+        echo $response;
+    } else {
+        echo json_encode(['success' => false, 'message' => 'Failed to connect to the Inventory API.']);
     }
     exit();
 }
 
-// Update PO Status (Approve or Cancel)
+// ---------------------------------------------------------
+// ACTION 2: SEND APPROVAL/CANCEL BACK TO INVENTORY
+// ---------------------------------------------------------
 if ($action === 'update_status') {
-    $po_id = $_POST['po_id'] ?? '';
-    $new_status = $_POST['status'] ?? ''; // Expecting 'Received' (Approved) or 'Cancelled'
-
-    if (empty($po_id) || empty($new_status)) {
-        echo json_encode(['status' => 'error', 'message' => 'PO ID and Status are required.']);
+    // 1. Read the JSON sent from our frontend modal
+    $data = json_decode(file_get_contents("php://input"));
+    
+    if (empty($data->po_id) || empty($data->new_status)) {
+        echo json_encode(['success' => false, 'message' => 'Missing PO ID or Status.']);
         exit();
     }
 
-    try {
-        $stmt = $pdo->prepare("UPDATE purchase_orders SET status = :status WHERE po_id = :po_id");
-        $stmt->execute(['status' => $new_status, 'po_id' => $po_id]);
+    // 2. Package the data as standard Form POST data for the external API
+    $postData = http_build_query([
+        'po_id'  => $data->po_id,
+        'status' => $data->new_status
+    ]);
 
-        $action_text = ($new_status === 'Cancelled') ? 'cancelled' : 'approved and marked as received';
-        
+    // 3. Setup the cURL POST request to the external Inventory API
+    $url = "https://icis-inventory.onrender.com/includes/api/api.php?action=update_po_status";
+    
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, $postData);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false); // Prevent SSL blocks
+    
+    // 4. Execute the request
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlError = curl_error($ch);
+    curl_close($ch);
+
+    // 5. Check if the external API accepted our request
+    if ($httpCode === 200 && $response) {
+        // We assume the external API sends back a JSON response like {"success": true, "message": "..."}
+        // So we just echo their exact response straight back to our frontend!
+        echo $response;
+    } else {
         echo json_encode([
-            'status' => 'success', 
-            'message' => "Purchase Order #$po_id has been $action_text."
+            'success' => false, 
+            'message' => 'Failed to update the external Inventory system. HTTP Code: ' . $httpCode . ' Error: ' . $curlError
         ]);
-    } catch (PDOException $e) {
-        echo json_encode(['status' => 'error', 'message' => 'Update failed: ' . $e->getMessage()]);
-    }
-    exit();
-}
-// Fetch Processed Purchase Orders (History)
-if ($action === 'get_history') {
-    try {
-        $stmt = $pdo->query("
-            SELECT p.po_id, s.name as supplier_name, p.order_date, p.total_amount, p.status 
-            FROM purchase_orders p
-            JOIN suppliers s ON p.supplier_id = s.supplier_id
-            WHERE p.status IN ('Received', 'Cancelled')
-            ORDER BY p.order_date DESC, p.po_id DESC
-            LIMIT 100
-        ");
-        $history_pos = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        
-        echo json_encode(['status' => 'success', 'data' => $history_pos]);
-    } catch (PDOException $e) {
-        echo json_encode(['status' => 'error', 'message' => 'Database error: ' . $e->getMessage()]);
     }
     exit();
 }
 
-echo json_encode(['status' => 'error', 'message' => 'Invalid action.']);
+// Default fallback
+echo json_encode(['success' => false, 'message' => 'Invalid action requested.']);
 ?>
