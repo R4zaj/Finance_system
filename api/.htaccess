@@ -1,0 +1,36 @@
+# ==============================================================================
+# API DIRECTORY SECURITY & ROUTING CONFIGURATION
+# ==============================================================================
+
+# 1. PREVENT DIRECTORY BROWSING (Crucial Security)
+# Stops users from seeing a list of all your PHP files if they navigate to /api/
+Options -Indexes
+
+# 2. ENABLE CORS (Cross-Origin Resource Sharing)
+# Allows your frontend to talk to this API even if they are on different domains
+<IfModule mod_headers.c>
+    Header always set Access-Control-Allow-Origin "*"
+    Header always set Access-Control-Allow-Methods "POST, GET, OPTIONS, DELETE, PUT"
+    Header always set Access-Control-Allow-Headers "Content-Type, Authorization, X-Requested-With"
+</IfModule>
+
+# 3. HANDLE PREFLIGHT 'OPTIONS' REQUESTS
+# Browsers send an empty OPTIONS request before a POST request to check security.
+# This catches it and tells the browser "Yes, you are allowed" without crashing PHP.
+RewriteEngine On
+RewriteCond %{REQUEST_METHOD} OPTIONS
+RewriteRule ^(.*)$ $1 [R=200,L]
+
+# 4. CLEAN URLS (Optional but highly recommended)
+# This allows you to call API files without typing the .php extension.
+# E.g., you can fetch from '../api/get_accounts' instead of '../api/get_accounts.php'
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteCond %{REQUEST_FILENAME}\.php -f
+RewriteRule ^([^\.]+)$ $1.php [NC,L]
+
+# 5. BLOCK DIRECT ACCESS TO DB.PHP OR INCLUDES
+# Just in case someone tries to guess file names
+<FilesMatch "^(db\.php|config\.php)$">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
