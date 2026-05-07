@@ -1,83 +1,90 @@
-<?php
-// api/procurement_api.php
-session_start();
-header('Content-Type: application/json; charset=UTF-8');
-
-// Note: You might not even need db.php anymore if this file only talks to the external API!
-require_once '../includes/db.php'; 
-
-$action = isset($_GET['action']) ? $_GET['action'] : '';
-
-// ---------------------------------------------------------
-// ACTION 1: FETCH POs FROM EXTERNAL INVENTORY SYSTEM
-// ---------------------------------------------------------
-if ($action === 'get_pos') {
-    $url = "https://icis-inventory.onrender.com/includes/api/api.php?action=get_pos";
+$(document).ready(function() {
     
-    $ch = curl_init();
-    curl_setopt($ch, CURLOPT_URL, $url);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false); 
-    
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
+    // 1. Fetch POs from the external API when the modal opens
+    $('#poApprovalModal').on('show.bs.modal', function () {
+        loadPendingPOs();
+    });
 
-    if ($httpCode === 200 && $response) {
-        echo $response;
-    } else {
-        echo json_encode(['success' => false, 'message' => 'Failed to connect to the Inventory API.']);
+    function loadPendingPOs() {
+        $('#poTableBody').html('<tr><td colspan="5" class="text-center py-4"><span class="spinner-border spinner-border-sm me-2"></span>Connecting to Inventory System...</td></tr>');
+        
+        $.ajax({
+            url: '../api/procurement_api.php?action=get_pos',
+            type: 'GET',
+            dataType: 'json',
+            success: function(response) {
+                // NOTE: Depending on what icis-inventory sends back, 'response.data' might need to be adjusted.
+                let html = '';
+                
+                // Assuming the external API sends { success: true, data: [...] }
+                if (response.data && response.data.length > 0) {
+                    $.each(response.data, function(i, po) {
+                        // Only show pending/draft POs that need approval
+                        if(po.status === 'Draft' || po.status === 'Pending') {
+                            html += `
+                                <tr>
+                                    <td class="ps-4 fw-bold text-primary">#PO-${po.po_id || po.id}</td>
+                                    <td>${po.supplier_name || 'Unknown Supplier'}</td>
+                                    <td class="text-muted small">${po.order_date || po.date}</td>
+                                    <td class="text-end fw-semibold text-danger">₱${parseFloat(po.total_amount || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                                    <td class="text-end pe-4">
+                                        <div class="btn-group">
+                                            <button class="btn btn-sm btn-success btn-update-po" data-id="${po.po_id || po.id}" data-status="Ordered">
+                                                <i class="bi bi-check-lg"></i> Approve
+                                            </button>
+                                            <button class="btn btn-sm btn-outline-danger btn-update-po" data-id="${po.po_id || po.id}" data-status="Cancelled">
+                                                <i class="bi bi-x-lg"></i> Cancel
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            `;
+                        }
+                    });
+                    
+                    if (html === '') html = '<tr><td colspan="5" class="text-center py-4 text-muted">No pending Purchase Orders require approval.</td></tr>';
+                    
+                } else {
+                    html = '<tr><td colspan="5" class="text-center py-4 text-muted">No records found in the Inventory System.</td></tr>';
+                }
+                
+                $('#poTableBody').html(html);
+            },
+            error: function() {
+                $('#poTableBody').html('<tr><td colspan="5" class="text-center py-4 text-danger"><i class="bi bi-exclamation-triangle me-2"></i>Error connecting to the external Inventory API.</td></tr>');
+            }
+        });
     }
-    exit();
-}
 
-// ---------------------------------------------------------
-// ACTION 2: SEND APPROVAL/CANCEL BACK TO INVENTORY
-// ---------------------------------------------------------
-if ($action === 'update_status') {
-    // 1. Read the JSON sent from our frontend modal
-    $data = json_decode(file_get_contents("php://input"));
-    
-    if (empty($data->po_id) || empty($data->new_status)) {
-        echo json_encode(['success' => false, 'message' => 'Missing PO ID or Status.']);
-        exit();
-    }
+    // 2. Handle the Approve or Cancel click
+    $(document).on('click', '.btn-update-po', function() {
+        let poId = $(this).data('id');
+        let newStatus = $(this).data('status');
+        let $row = $(this).closest('tr');
+        
+        // Show loading state on the clicked row
+        $(this).html('<span class="spinner-border spinner-border-sm"></span>').prop('disabled', true);
+        $(this).siblings('button').prop('disabled', true);
 
-    // 2. Package the data as standard Form POST data for the external API
-    $postData = http_build_query([
-        'po_id'  => $data->po_id,
-        'status' => $data->new_status
-    ]);
-
-    // 3. Setup the cURL POST request to the external Inventory API
-    $url = "https://icis-inventory.onrender.com/includes/api/api.php?action=update_po_status";
-    
-    $ch = curl_init($url);
-    curl_setopt($ch, CURLOPT_POST, true);
-    curl_setopt($ch, CURLOPT_POSTFIELDS, $postData);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false); // Prevent SSL blocks
-    
-    // 4. Execute the request
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $curlError = curl_error($ch);
-    curl_close($ch);
-
-    // 5. Check if the external API accepted our request
-    if ($httpCode === 200 && $response) {
-        // We assume the external API sends back a JSON response like {"success": true, "message": "..."}
-        // So we just echo their exact response straight back to our frontend!
-        echo $response;
-    } else {
-        echo json_encode([
-            'success' => false, 
-            'message' => 'Failed to update the external Inventory system. HTTP Code: ' . $httpCode . ' Error: ' . $curlError
-        ]);
-    }
-    exit();
-}
-
-// Default fallback
-echo json_encode(['success' => false, 'message' => 'Invalid action requested.']);
-?>
+        $.ajax({
+            url: '../api/procurement_api.php?action=update_status',
+            type: 'POST',
+            data: JSON.stringify({ po_id: poId, new_status: newStatus }),
+            contentType: 'application/json',
+            success: function(response) {
+                if (response.success) {
+                    // Visually remove the row from the approval queue with a smooth fade
+                    $row.fadeOut(300, function() {
+                        $(this).remove();
+                        if ($('#poTableBody tr').length === 0) {
+                            $('#poTableBody').html('<tr><td colspan="5" class="text-center py-4 text-muted">No pending Purchase Orders require approval.</td></tr>');
+                        }
+                    });
+                } else {
+                    alert('Error: ' + response.message);
+                    loadPendingPOs(); // Reload table on error to restore buttons
+                }
+            }
+        });
+    });
+});
