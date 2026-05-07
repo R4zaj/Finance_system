@@ -124,11 +124,6 @@
                 <i class="bi bi-cash-coin"></i> Student Payments
             </a>
         </li>
-        <li class="nav-item">
-            <a href="ap_ar.php" class="nav-link sidebar-link text-decoration-none">
-                <i class="bi bi-receipt"></i> Vendor Payments
-            </a>
-        </li>
     </ul>
 
     <!-- PROCUREMENT -->
