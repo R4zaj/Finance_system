@@ -177,19 +177,16 @@ if (!isset($_SESSION['user_id'])) { header("Location: ../login.php"); exit(); }
             dataType: 'json',
             success: function(response) {
                 let html = '';
-                
-                // Handle both { data: [...] } or direct [...] array structures safely
                 let studentData = response.data ? response.data : response;
 
                 if (studentData && studentData.length > 0) {
                     $.each(studentData, function(i, student) {
                         
-                        // Extracting precise keys from your JSON
-                        let studentId = student.student_id;
                         let studentName = student.full_name;
                         let studentEmail = student.email || 'No Email Provided';
                         
-                        // Format the nested enrollments array
+                        // NEW: Array to hold all the enrollment IDs for this student
+                        let enrollmentIds = [];
                         let courseCodes = [];
                         let totalUnits = 0;
                         let subjectCount = 0;
@@ -197,9 +194,81 @@ if (!isset($_SESSION['user_id'])) { header("Location: ../login.php"); exit(); }
                         if (student.enrollments && student.enrollments.length > 0) {
                             subjectCount = student.enrollments.length;
                             $.each(student.enrollments, function(j, cls) {
+                                // Capture the specific enrollment_id the LMS needs
+                                enrollmentIds.push(cls.enrollment_id); 
                                 courseCodes.push(cls.course_code);
                                 totalUnits += parseInt(cls.units) || 0;
                             });
+                        }
+
+                        // Convert the array to a JSON string so we can attach it to the button safely
+                        let idsJson = JSON.stringify(enrollmentIds);
+
+                        html += `
+                            <tr>
+                                <td class="ps-4">
+                                    <div class="fw-bold text-dark text-capitalize">${studentName}</div>
+                                    <div class="small text-muted">${studentEmail}</div>
+                                </td>
+                                <td>
+                                    <div class="fw-semibold text-primary small"><i class="bi bi-journal-text me-1"></i>${subjectCount} Subjects (${totalUnits} Units)</div>
+                                    <div class="text-muted" style="font-size: 0.70rem;">${courseCodes.join(', ')}</div>
+                                </td>
+                                <td><span class="badge bg-warning text-dark">Pending</span></td>
+                                <td class="text-end pe-4">
+                                    <button class="btn btn-sm btn-success btn-approve" data-ids='${idsJson}'>
+                                        <i class="bi bi-check-lg"></i> Approve
+                                    </button>
+                                </td>
+                            </tr>
+                        `;
+                    });
+                } else {
+                    html = '<tr><td colspan="4" class="text-center py-4 text-muted">No pending enrollments from the LMS to approve.</td></tr>';
+                }
+                
+                $('#pendingEnrollmentsBody').html(html);
+            },
+            error: function(xhr) {
+                console.error("LMS Sync Error:", xhr.responseText);
+                $('#pendingEnrollmentsBody').html('<tr><td colspan="4" class="text-center py-4 text-danger"><i class="bi bi-wifi-off me-2"></i>Failed to connect to the LMS API.</td></tr>');
+            }
+        });
+    }
+
+    // 2. Handle the "Approve" button click to POST to the LMS
+    $(document).on('click', '.btn-approve', function() {
+        // Retrieve the array of enrollment_ids from the button
+        let eIds = $(this).data('ids');
+        let $btn = $(this);
+        
+        $btn.html('<span class="spinner-border spinner-border-sm"></span>').prop('disabled', true);
+
+        $.ajax({
+            url: '../api/lms_api.php?action=approve',
+            type: 'POST',
+            // Send the array of IDs exactly as our PHP bridge expects
+            data: JSON.stringify({ enrollment_ids: eIds }), 
+            contentType: 'application/json',
+            success: function(response) {
+                if (response.status === 'success' || response.success) {
+                    $btn.closest('tr').fadeOut(300, function() {
+                        $(this).remove();
+                        if ($('#pendingEnrollmentsBody tr').length === 0) {
+                            $('#pendingEnrollmentsBody').html('<tr><td colspan="4" class="text-center py-4 text-muted">No pending enrollments from the LMS to approve.</td></tr>');
+                        }
+                    });
+                } else {
+                    alert('LMS Error: ' + (response.message || 'Approval failed.'));
+                    $btn.html('<i class="bi bi-check-lg"></i> Approve').prop('disabled', false);
+                }
+            },
+            error: function() {
+                alert('Server error while talking to the LMS API.');
+                $btn.html('<i class="bi bi-check-lg"></i> Approve').prop('disabled', false);
+            }
+        });
+    });
                         }
 
                         html += `
