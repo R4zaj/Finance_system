@@ -33,50 +33,52 @@ if ($action === 'get_pending') {
 }
 
 // ---------------------------------------------------------
-// ACTION 2: POST APPROVAL TO LMS
+// ACTION 2: POST APPROVAL TO LMS (UPDATED FOR ENROLLMENT_ID)
 // ---------------------------------------------------------
 if ($action === 'approve') {
     $data = json_decode(file_get_contents("php://input"));
     
-    // Using student_id based on your JSON structure
-    if (empty($data->student_id)) {
-        echo json_encode(['status' => 'error', 'message' => 'Missing Student ID.']);
+    // We now look for an array of enrollment_ids instead of a single student_id
+    if (empty($data->enrollment_ids) || !is_array($data->enrollment_ids)) {
+        echo json_encode(['status' => 'error', 'message' => 'Missing enrollment IDs.']);
         exit();
     }
 
-    // Prepare standard Form POST data for the external LMS
-    $postData = http_build_query([
-        'student_id' => $data->student_id,
-        'status'     => 'Approved'
-    ]);
+    $successCount = 0;
+    $lastError = "";
 
-    // Send the POST request to the action expected by the LMS
-    $url = $baseUrl . "?action=approve&api_key=" . $apiKey;
-    
-    $ch = curl_init($url);
-    curl_setopt($ch, CURLOPT_POST, true);
-    curl_setopt($ch, CURLOPT_POSTFIELDS, $postData);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-    curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)');
-    
-    // ... existing cURL code above ...
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-
-    if ($httpCode === 200 && $response) {
-        echo $response;
-    } else {
-        // 🚨 WE EXPOSE THE RAW RESPONSE HERE!
-        // The LMS usually sends back a JSON string explaining exactly what we did wrong.
-        echo json_encode([
-            'status' => 'error', 
-            'message' => "LMS returned HTTP $httpCode. Details: " . strip_tags($response)
+    // Loop through every class the student is enrolling in and approve it
+    foreach ($data->enrollment_ids as $eid) {
+        // We use the exact parameter name the LMS asked for: 'enrollment_id'
+        $postData = http_build_query([
+            'enrollment_id' => $eid,
+            'status'        => 'Approved'
         ]);
+
+        $url = $baseUrl . "?action=approve&api_key=" . $apiKey;
+        
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, $postData);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)');
+        
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($httpCode === 200) {
+            $successCount++;
+        } else {
+            $lastError = strip_tags($response);
+        }
+    }
+
+    if ($successCount > 0) {
+        echo json_encode(['status' => 'success', 'message' => "$successCount subjects approved."]);
+    } else {
+        echo json_encode(['status' => 'error', 'message' => "LMS rejected the approval. Details: " . $lastError]);
     }
     exit();
 }
-
-echo json_encode(['status' => 'error', 'message' => 'Invalid action.']);
-?>
