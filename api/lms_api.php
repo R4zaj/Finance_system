@@ -60,6 +60,7 @@ if ($action === 'approve') {
     curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
     curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)');
     
+    // ... existing cURL code above ...
     $response = curl_exec($ch);
     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
@@ -67,7 +68,12 @@ if ($action === 'approve') {
     if ($httpCode === 200 && $response) {
         echo $response;
     } else {
-        echo json_encode(['status' => 'error', 'message' => 'LMS Update Failed. HTTP: ' . $httpCode]);
+        // 🚨 WE EXPOSE THE RAW RESPONSE HERE!
+        // The LMS usually sends back a JSON string explaining exactly what we did wrong.
+        echo json_encode([
+            'status' => 'error', 
+            'message' => "LMS returned HTTP $httpCode. Details: " . strip_tags($response)
+        ]);
     }
     exit();
 }
