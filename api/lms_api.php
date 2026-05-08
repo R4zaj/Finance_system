@@ -33,12 +33,11 @@ if ($action === 'get_pending') {
 }
 
 // ---------------------------------------------------------
-// ACTION 2: POST APPROVAL TO LMS (UPDATED FOR ENROLLMENT_ID)
+// ACTION 2: POST APPROVAL TO LMS (UPDATED FOR JSON PAYLOAD)
 // ---------------------------------------------------------
 if ($action === 'approve') {
     $data = json_decode(file_get_contents("php://input"));
     
-    // We now look for an array of enrollment_ids instead of a single student_id
     if (empty($data->enrollment_ids) || !is_array($data->enrollment_ids)) {
         echo json_encode(['status' => 'error', 'message' => 'Missing enrollment IDs.']);
         exit();
@@ -49,8 +48,9 @@ if ($action === 'approve') {
 
     // Loop through every class the student is enrolling in and approve it
     foreach ($data->enrollment_ids as $eid) {
-        // We use the exact parameter name the LMS asked for: 'enrollment_id'
-        $postData = http_build_query([
+        
+        // FIX: The LMS expects strict JSON, not Form Data!
+        $postData = json_encode([
             'enrollment_id' => $eid,
             'status'        => 'Approved'
         ]);
@@ -64,6 +64,12 @@ if ($action === 'approve') {
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
         curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)');
         
+        // FIX: Tell the LMS server that we are sending JSON data
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Content-Type: application/json',
+            'Content-Length: ' . strlen($postData)
+        ]);
+        
         $response = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         curl_close($ch);
@@ -75,6 +81,7 @@ if ($action === 'approve') {
         }
     }
 
+    // If at least one class was approved, we consider it a success!
     if ($successCount > 0) {
         echo json_encode(['status' => 'success', 'message' => "$successCount subjects approved."]);
     } else {
