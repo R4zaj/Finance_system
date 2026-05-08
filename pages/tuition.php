@@ -25,15 +25,13 @@ if (!isset($_SESSION['user_id'])) { header("Location: ../login.php"); exit(); }
 
         <main class="p-4 overflow-y-auto">
             
-           <!-- Top Controls Banner -->
-            <div class="card action-banner p-4 mb-4 border-0 shadow-sm">
+           <div class="card action-banner p-4 mb-4 border-0 shadow-sm">
                 <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
                     <div>
                         <h3 class="fw-bold mb-1"><i class="bi bi-wallet2 me-2"></i> Tuition & Fees</h3>
                         <p class="mb-0 text-white-50">Manage student accounts, record payments, and process enrollment clearances.</p>
                     </div>
                     
-                    <!-- Buttons placed clearly in the banner -->
                     <div class="d-flex gap-2">
                         <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#approvalModal" id="btnOpenApprovals">
                             <i class="bi bi-person-check me-1"></i> Enrollment Approval
@@ -46,7 +44,6 @@ if (!isset($_SESSION['user_id'])) { header("Location: ../login.php"); exit(); }
                 </div>
             </div>
 
-            <!-- Recent Payments Table -->
             <div class="card card-custom shadow-sm p-0">
                 <div class="card-header bg-white p-3 border-bottom d-flex justify-content-between align-items-center">
                     <h6 class="fw-bold mb-0">Recent Tuition Collections</h6>
@@ -75,7 +72,6 @@ if (!isset($_SESSION['user_id'])) { header("Location: ../login.php"); exit(); }
         </main>
     </div>
 
-    <!-- Record Payment Modal -->
     <div class="modal fade" id="paymentModal" tabindex="-1">
         <div class="modal-dialog">
             <div class="modal-content card-custom">
@@ -91,8 +87,7 @@ if (!isset($_SESSION['user_id'])) { header("Location: ../login.php"); exit(); }
                         <div class="mb-3">
                             <label class="form-label small fw-bold">Select Student</label>
                             <select class="form-select bg-light" id="student_id" required>
-                                <!-- AJAX will populate this -->
-                            </select>
+                                </select>
                         </div>
                         <div class="mb-3">
                             <label class="form-label small fw-bold">Payment Date</label>
@@ -115,7 +110,6 @@ if (!isset($_SESSION['user_id'])) { header("Location: ../login.php"); exit(); }
         </div>
     </div>
 
-    <!-- Enrollment Clearance Modal -->
     <div class="modal fade" id="approvalModal" tabindex="-1">
         <div class="modal-dialog modal-xl">
             <div class="modal-content card-custom">
@@ -133,14 +127,13 @@ if (!isset($_SESSION['user_id'])) { header("Location: ../login.php"); exit(); }
                                 <thead class="bg-light">
                                     <tr>
                                         <th class="ps-4">Student Name</th>
-                                        <th>Email Address</th>
+                                        <th>Program Details</th>
                                         <th>Status</th>
                                         <th class="text-end pe-4">Action</th>
                                     </tr>
                                 </thead>
                                 <tbody id="pendingEnrollmentsBody">
-                                    <!-- AJAX will load pending students here -->
-                                </tbody>
+                                    </tbody>
                             </table>
                         </div>
                     </div>
@@ -152,190 +145,121 @@ if (!isset($_SESSION['user_id'])) { header("Location: ../login.php"); exit(); }
         </div>
     </div>
 
-    <!-- 1. External Libraries First -->
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     
-    <!-- 2. External Custom Scripts -->
     <script src="../assets/js/tuition.js"></script>
 
-    <!-- 3. Inline Logic -->
     <script>
     $(document).ready(function() {
     
-    // 1. Fetch pending enrollments from the external LMS
-    $('#btnOpenApprovals').on('click', function() {
-        loadPendingEnrollments();
-    });
-
-    function loadPendingEnrollments() {
-        $('#pendingEnrollmentsBody').html('<tr><td colspan="4" class="text-center py-4"><span class="spinner-border spinner-border-sm me-2"></span>Syncing with LMS...</td></tr>');
-        
-        $.ajax({
-            url: '../api/lms_api.php?action=get_pending',
-            type: 'GET',
-            dataType: 'json',
-            success: function(response) {
-                let html = '';
-                let studentData = response.data ? response.data : response;
-
-                if (studentData && studentData.length > 0) {
-                    $.each(studentData, function(i, student) {
-                        
-                        let studentName = student.full_name;
-                        let studentEmail = student.email || 'No Email Provided';
-                        
-                        // NEW: Array to hold all the enrollment IDs for this student
-                        let enrollmentIds = [];
-                        let courseCodes = [];
-                        let totalUnits = 0;
-                        let subjectCount = 0;
-
-                        if (student.enrollments && student.enrollments.length > 0) {
-                            subjectCount = student.enrollments.length;
-                            $.each(student.enrollments, function(j, cls) {
-                                // Capture the specific enrollment_id the LMS needs
-                                enrollmentIds.push(cls.enrollment_id); 
-                                courseCodes.push(cls.course_code);
-                                totalUnits += parseInt(cls.units) || 0;
-                            });
-                        }
-
-                        // Convert the array to a JSON string so we can attach it to the button safely
-                        let idsJson = JSON.stringify(enrollmentIds);
-
-                        html += `
-                            <tr>
-                                <td class="ps-4">
-                                    <div class="fw-bold text-dark text-capitalize">${studentName}</div>
-                                    <div class="small text-muted">${studentEmail}</div>
-                                </td>
-                                <td>
-                                    <div class="fw-semibold text-primary small"><i class="bi bi-journal-text me-1"></i>${subjectCount} Subjects (${totalUnits} Units)</div>
-                                    <div class="text-muted" style="font-size: 0.70rem;">${courseCodes.join(', ')}</div>
-                                </td>
-                                <td><span class="badge bg-warning text-dark">Pending</span></td>
-                                <td class="text-end pe-4">
-                                    <button class="btn btn-sm btn-success btn-approve" data-ids='${idsJson}'>
-                                        <i class="bi bi-check-lg"></i> Approve
-                                    </button>
-                                </td>
-                            </tr>
-                        `;
-                    });
-                } else {
-                    html = '<tr><td colspan="4" class="text-center py-4 text-muted">No pending enrollments from the LMS to approve.</td></tr>';
-                }
-                
-                $('#pendingEnrollmentsBody').html(html);
-            },
-            error: function(xhr) {
-                console.error("LMS Sync Error:", xhr.responseText);
-                $('#pendingEnrollmentsBody').html('<tr><td colspan="4" class="text-center py-4 text-danger"><i class="bi bi-wifi-off me-2"></i>Failed to connect to the LMS API.</td></tr>');
-            }
+        // 1. Fetch pending enrollments from the external LMS
+        $('#btnOpenApprovals').on('click', function() {
+            loadPendingEnrollments();
         });
-    }
 
-    // 2. Handle the "Approve" button click to POST to the LMS
-    $(document).on('click', '.btn-approve', function() {
-        // Retrieve the array of enrollment_ids from the button
-        let eIds = $(this).data('ids');
-        let $btn = $(this);
-        
-        $btn.html('<span class="spinner-border spinner-border-sm"></span>').prop('disabled', true);
+        function loadPendingEnrollments() {
+            $('#pendingEnrollmentsBody').html('<tr><td colspan="4" class="text-center py-4"><span class="spinner-border spinner-border-sm me-2"></span>Syncing with LMS...</td></tr>');
+            
+            $.ajax({
+                url: '../api/lms_api.php?action=get_pending',
+                type: 'GET',
+                dataType: 'json',
+                success: function(response) {
+                    let html = '';
+                    let studentData = response.data ? response.data : response;
 
-        $.ajax({
-            url: '../api/lms_api.php?action=approve',
-            type: 'POST',
-            // Send the array of IDs exactly as our PHP bridge expects
-            data: JSON.stringify({ enrollment_ids: eIds }), 
-            contentType: 'application/json',
-            success: function(response) {
-                if (response.status === 'success' || response.success) {
-                    $btn.closest('tr').fadeOut(300, function() {
-                        $(this).remove();
-                        if ($('#pendingEnrollmentsBody tr').length === 0) {
-                            $('#pendingEnrollmentsBody').html('<tr><td colspan="4" class="text-center py-4 text-muted">No pending enrollments from the LMS to approve.</td></tr>');
-                        }
-                    });
-                } else {
-                    alert('LMS Error: ' + (response.message || 'Approval failed.'));
+                    if (studentData && studentData.length > 0) {
+                        $.each(studentData, function(i, student) {
+                            
+                            let studentName = student.full_name;
+                            let studentEmail = student.email || 'No Email Provided';
+                            
+                            // Array to hold all the enrollment IDs for this student
+                            let enrollmentIds = [];
+                            let courseCodes = [];
+                            let totalUnits = 0;
+                            let subjectCount = 0;
+
+                            if (student.enrollments && student.enrollments.length > 0) {
+                                subjectCount = student.enrollments.length;
+                                $.each(student.enrollments, function(j, cls) {
+                                    // Capture the specific enrollment_id the LMS needs
+                                    enrollmentIds.push(cls.enrollment_id); 
+                                    courseCodes.push(cls.course_code);
+                                    totalUnits += parseInt(cls.units) || 0;
+                                });
+                            }
+
+                            // Convert the array to a JSON string so we can attach it to the button safely
+                            let idsJson = JSON.stringify(enrollmentIds);
+
+                            html += `
+                                <tr>
+                                    <td class="ps-4">
+                                        <div class="fw-bold text-dark text-capitalize">${studentName}</div>
+                                        <div class="small text-muted">${studentEmail}</div>
+                                    </td>
+                                    <td>
+                                        <div class="fw-semibold text-primary small"><i class="bi bi-journal-text me-1"></i>${subjectCount} Subjects (${totalUnits} Units)</div>
+                                        <div class="text-muted" style="font-size: 0.70rem;">${courseCodes.join(', ')}</div>
+                                    </td>
+                                    <td><span class="badge bg-warning text-dark">Pending</span></td>
+                                    <td class="text-end pe-4">
+                                        <button class="btn btn-sm btn-success btn-approve" data-ids='${idsJson}'>
+                                            <i class="bi bi-check-lg"></i> Approve
+                                        </button>
+                                    </td>
+                                </tr>
+                            `;
+                        });
+                    } else {
+                        html = '<tr><td colspan="4" class="text-center py-4 text-muted">No pending enrollments from the LMS to approve.</td></tr>';
+                    }
+                    
+                    $('#pendingEnrollmentsBody').html(html);
+                },
+                error: function(xhr) {
+                    console.error("LMS Sync Error:", xhr.responseText);
+                    $('#pendingEnrollmentsBody').html('<tr><td colspan="4" class="text-center py-4 text-danger"><i class="bi bi-wifi-off me-2"></i>Failed to connect to the LMS API.</td></tr>');
+                }
+            });
+        }
+
+        // 2. Handle the "Approve" button click to POST to the LMS
+        $(document).on('click', '.btn-approve', function() {
+            // Retrieve the array of enrollment_ids from the button
+            let eIds = $(this).data('ids');
+            let $btn = $(this);
+            
+            $btn.html('<span class="spinner-border spinner-border-sm"></span>').prop('disabled', true);
+
+            $.ajax({
+                url: '../api/lms_api.php?action=approve',
+                type: 'POST',
+                // Send the array of IDs exactly as our PHP bridge expects
+                data: JSON.stringify({ enrollment_ids: eIds }), 
+                contentType: 'application/json',
+                success: function(response) {
+                    if (response.status === 'success' || response.success) {
+                        $btn.closest('tr').fadeOut(300, function() {
+                            $(this).remove();
+                            if ($('#pendingEnrollmentsBody tr').length === 0) {
+                                $('#pendingEnrollmentsBody').html('<tr><td colspan="4" class="text-center py-4 text-muted">No pending enrollments from the LMS to approve.</td></tr>');
+                            }
+                        });
+                    } else {
+                        alert('LMS Error: ' + (response.message || 'Approval failed.'));
+                        $btn.html('<i class="bi bi-check-lg"></i> Approve').prop('disabled', false);
+                    }
+                },
+                error: function() {
+                    alert('Server error while talking to the LMS API.');
                     $btn.html('<i class="bi bi-check-lg"></i> Approve').prop('disabled', false);
                 }
-            },
-            error: function() {
-                alert('Server error while talking to the LMS API.');
-                $btn.html('<i class="bi bi-check-lg"></i> Approve').prop('disabled', false);
-            }
+            });
         });
     });
-                        }
-
-                        html += `
-                            <tr>
-                                <td class="ps-4">
-                                    <div class="fw-bold text-dark text-capitalize">${studentName}</div>
-                                    <div class="small text-muted">${studentEmail}</div>
-                                </td>
-                                <td>
-                                    <div class="fw-semibold text-primary small"><i class="bi bi-journal-text me-1"></i>${subjectCount} Subjects (${totalUnits} Units)</div>
-                                    <div class="text-muted" style="font-size: 0.70rem;">${courseCodes.join(', ')}</div>
-                                </td>
-                                <td><span class="badge bg-warning text-dark">Pending</span></td>
-                                <td class="text-end pe-4">
-                                    <button class="btn btn-sm btn-success btn-approve" data-id="${studentId}">
-                                        <i class="bi bi-check-lg"></i> Approve
-                                    </button>
-                                </td>
-                            </tr>
-                        `;
-                    });
-                } else {
-                    html = '<tr><td colspan="4" class="text-center py-4 text-muted">No pending enrollments from the LMS to approve.</td></tr>';
-                }
-                
-                $('#pendingEnrollmentsBody').html(html);
-            },
-            error: function(xhr) {
-                console.error("LMS Sync Error:", xhr.responseText);
-                $('#pendingEnrollmentsBody').html('<tr><td colspan="4" class="text-center py-4 text-danger"><i class="bi bi-wifi-off me-2"></i>Failed to connect to the LMS API.</td></tr>');
-            }
-        });
-    }
-
-    // 2. Handle the "Approve" button click to POST to the LMS
-    $(document).on('click', '.btn-approve', function() {
-        let studentId = $(this).data('id');
-        let $btn = $(this);
-        
-        $btn.html('<span class="spinner-border spinner-border-sm"></span>').prop('disabled', true);
-
-        $.ajax({
-            url: '../api/lms_api.php?action=approve',
-            type: 'POST',
-            data: JSON.stringify({ student_id: studentId }), // Sending the specific JSON key
-            contentType: 'application/json',
-            success: function(response) {
-                // Check for generic success flags
-                if (response.status === 'success' || response.success) {
-                    $btn.closest('tr').fadeOut(300, function() {
-                        $(this).remove();
-                        if ($('#pendingEnrollmentsBody tr').length === 0) {
-                            $('#pendingEnrollmentsBody').html('<tr><td colspan="4" class="text-center py-4 text-muted">No pending enrollments from the LMS to approve.</td></tr>');
-                        }
-                    });
-                } else {
-                    alert('LMS Error: ' + (response.message || 'Approval failed.'));
-                    $btn.html('<i class="bi bi-check-lg"></i> Approve').prop('disabled', false);
-                }
-            },
-            error: function() {
-                alert('Server error while talking to the LMS API.');
-                $btn.html('<i class="bi bi-check-lg"></i> Approve').prop('disabled', false);
-            }
-        });
-    });
-});
 
     // Initialization Script for Date Input
     let payDateInput = document.getElementById('pay_date');
