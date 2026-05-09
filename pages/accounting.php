@@ -146,6 +146,56 @@ if (!isset($_SESSION['user_id'])) {
             </div>
         </main>
     </div>
+    <div class="modal fade" id="newEntryModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content border-0 shadow card-custom">
+            <div class="modal-header border-0 pb-0">
+                <div>
+                    <h5 class="fw-bold mb-0"><i class="bi bi-journal-plus text-success me-2"></i>Record New Entry</h5>
+                    <small class="text-muted">Add a new manual journal or ledger entry to the system.</small>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="newEntryForm">
+                <div class="modal-body bg-light mt-3 p-4">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold text-muted">Entry Date</label>
+                            <input type="date" class="form-control bg-white" id="entry_date" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold text-muted">Account</label>
+                            <select class="form-select bg-white" id="account_id" required>
+                                <option value="" selected disabled>Select an account...</option>
+                                <option value="cash">Cash on Hand</option>
+                                <option value="ar">Accounts Receivable</option>
+                                <option value="ap">Accounts Payable</option>
+                                <option value="revenue">Tuition Revenue</option>
+                                <option value="expense">General Expense</option>
+                                </select>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label small fw-bold text-muted">Description / Particulars</label>
+                            <input type="text" class="form-control bg-white" id="entry_description" placeholder="e.g., Payment for office supplies" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold text-muted">Debit Amount (₱)</label>
+                            <input type="number" step="0.01" min="0" class="form-control bg-white" id="debit_amount" placeholder="0.00">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold text-muted">Credit Amount (₱)</label>
+                            <input type="number" step="0.01" min="0" class="form-control bg-white" id="credit_amount" placeholder="0.00">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-0 pt-3">
+                    <button type="button" class="btn btn-light fw-bold" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success fw-bold px-4" style="background-color: #1a5632;">Save Entry</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 
     <!-- Modals Module -->
     <?php include '../includes/modals.php'; ?>
@@ -153,7 +203,15 @@ if (!isset($_SESSION['user_id'])) {
     <!-- Scripts -->
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+    // Automatically set the New Entry date to today when the page loads
+    let entryDateInput = document.getElementById('entry_date');
+    if (entryDateInput) {
+        entryDateInput.valueAsDate = new Date();
+    }
+</script>
     <script src="../assets/js/auth.js"></script>
     <script src="../assets/js/ledger.js"></script>
+    
 </body>
 </html>
