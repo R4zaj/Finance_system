@@ -17,29 +17,43 @@ if (empty($data->entry_date) || empty($data->account_id) || empty($data->descrip
     exit();
 }
 
-// Basic Accounting Check: Must have either a debit or credit
-if ($data->debit == 0 && $data->credit == 0) {
-    echo json_encode(['success' => false, 'message' => 'You must enter a Debit or Credit amount.']);
+// Ensure they entered a value greater than 0 in either debit or credit
+$debitAmount = floatval($data->debit);
+$creditAmount = floatval($data->credit);
+
+if ($debitAmount <= 0 && $creditAmount <= 0) {
+    echo json_encode(['success' => false, 'message' => 'You must enter a Debit or Credit amount greater than zero.']);
     exit();
 }
 
+// Determine the type and the final amount based on your `transactions` table schema
+$type = '';
+$amount = 0.00;
+
+if ($debitAmount > 0) {
+    $type = 'Debit';
+    $amount = $debitAmount;
+} elseif ($creditAmount > 0) {
+    $type = 'Credit';
+    $amount = $creditAmount;
+}
+
 try {
-    // 🚨 IMPORTANT: Change 'general_ledger' and these column names to match your actual database table!
+    // Insert into your existing `transactions` table
     $stmt = $pdo->prepare("
-        INSERT INTO general_ledger (entry_date, account_id, description, debit, credit, created_by) 
-        VALUES (:date, :account, :desc, :debit, :credit, :user)
+        INSERT INTO transactions (account_id, trans_date, amount, type, description) 
+        VALUES (:account, :date, :amount, :type, :desc)
     ");
     
     $stmt->execute([
+        'account' => $data->account_id, // e.g., 1 for Cash, 2 for AR
         'date'    => $data->entry_date,
-        'account' => $data->account_id,
-        'desc'    => $data->description,
-        'debit'   => $data->debit,
-        'credit'  => $data->credit,
-        'user'    => $_SESSION['user_id']
+        'amount'  => $amount,
+        'type'    => $type,
+        'desc'    => $data->description
     ]);
 
-    echo json_encode(['success' => true, 'message' => 'Journal entry recorded successfully.']);
+    echo json_encode(['success' => true, 'message' => 'Accounting transaction recorded successfully.']);
 
 } catch (PDOException $e) {
     echo json_encode(['success' => false, 'message' => 'Database error: ' . $e->getMessage()]);
