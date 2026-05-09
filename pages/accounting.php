@@ -210,6 +210,51 @@ if (!isset($_SESSION['user_id'])) {
         entryDateInput.valueAsDate = new Date();
     }
 </script>
+    <script>
+$(document).ready(function() {
+    $('#newEntryForm').on('submit', function(e) {
+        e.preventDefault(); // Stop the page from reloading
+        
+        let $btn = $(this).find('button[type="submit"]');
+        $btn.html('<span class="spinner-border spinner-border-sm me-2"></span>Saving...').prop('disabled', true);
+
+        // Gather all the data from our new modal
+        let entryData = {
+            entry_date: $('#entry_date').val(),
+            account_id: $('#account_id').val(),
+            description: $('#entry_description').val(),
+            debit: $('#debit_amount').val() || 0,
+            credit: $('#credit_amount').val() || 0
+        };
+
+        $.ajax({
+            url: '../api/save_accounting_entry.php',
+            type: 'POST',
+            data: JSON.stringify(entryData),
+            contentType: 'application/json',
+            success: function(response) {
+                if (response.success) {
+                    // Close modal, clear form, and show success
+                    $('#newEntryModal').modal('hide');
+                    $('#newEntryForm')[0].reset();
+                    alert('Success: ' + response.message);
+                    
+                    // Optional: If you have a function to reload the ledger table, call it here!
+                    // loadLedger(); 
+                } else {
+                    alert('Error: ' + response.message);
+                }
+            },
+            error: function() {
+                alert('Server connection error. Check your network tab.');
+            },
+            complete: function() {
+                $btn.html('Save Entry').prop('disabled', false);
+            }
+        });
+    });
+});
+</script>
     <script src="../assets/js/auth.js"></script>
     <script src="../assets/js/ledger.js"></script>
     
