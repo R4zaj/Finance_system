@@ -44,7 +44,7 @@
             </div>
             <div class="modal-footer border-0 justify-content-center pt-0 pb-3">
                 <button type="button" class="btn btn-light btn-sm fw-semibold" data-bs-dismiss="modal">Cancel</button>
-                <a href="../logout.php" class="btn btn-danger btn-sm fw-bold px-4">Yes, Sign Out</a>
+                <a href="../login.php" class="btn btn-danger btn-sm fw-bold px-4">Yes, Sign Out</a>
             </div>
         </div>
     </div>
