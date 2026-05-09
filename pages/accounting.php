@@ -165,14 +165,15 @@ if (!isset($_SESSION['user_id'])) {
                         </div>
                         <div class="col-md-6">
                             <label class="form-label small fw-bold text-muted">Account</label>
-                            <select class="form-select bg-white" id="account_id" required>
-                                <option value="" selected disabled>Select an account...</option>
-                                <option value="cash">Cash on Hand</option>
-                                <option value="ar">Accounts Receivable</option>
-                                <option value="ap">Accounts Payable</option>
-                                <option value="revenue">Tuition Revenue</option>
-                                <option value="expense">General Expense</option>
-                                </select>
+                           <select class="form-select bg-white" id="account_id" required>
+    <option value="" selected disabled>Select an account...</option>
+    <option value="1">Cash</option>
+    <option value="2">Accounts Receivable</option>
+    <option value="4">Accounts Payable</option>
+    <option value="6">Tuition Revenue</option>
+    <option value="8">Utilities Expense</option>
+    <option value="9">Supplies Expense</option>
+</select>
                         </div>
                         <div class="col-12">
                             <label class="form-label small fw-bold text-muted">Description / Particulars</label>
