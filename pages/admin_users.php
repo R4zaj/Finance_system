@@ -73,15 +73,15 @@ try {
                                 </select>
                             </div>
                             
-                            <div class="mb-3">
-                                <label class="form-label small fw-bold text-muted">New Password</label>
-                                <input type="password" class="form-control bg-light" id="new_password" required minlength="6">
-                            </div>
-                            
-                            <div class="mb-4">
-                                <label class="form-label small fw-bold text-muted">Confirm New Password</label>
-                                <input type="password" class="form-control bg-light" id="confirm_password" required minlength="6">
-                            </div>
+<div class="mb-3">
+    <label class="form-label small fw-bold text-muted">New Password</label>
+    <input type="password" class="form-control bg-light" id="admin_new_password" required minlength="6">
+</div>
+
+<div class="mb-4">
+    <label class="form-label small fw-bold text-muted">Confirm New Password</label>
+    <input type="password" class="form-control bg-light" id="admin_confirm_password" required minlength="6">
+</div>
                             
                             <button type="submit" class="btn btn-dark w-100 fw-bold" id="btnResetPassword">
                                 Overwrite Password
@@ -103,8 +103,8 @@ try {
             e.preventDefault();
             
             let targetUserId = $('#target_user_id').val();
-            let newPwd = $('#new_password').val();
-            let confirmPwd = $('#confirm_password').val();
+           let newPwd = $('#admin_new_password').val();
+let confirmPwd = $('#admin_confirm_password').val();
             let $alertBox = $('#resetAlert');
             let $btn = $('#btnResetPassword');
 
