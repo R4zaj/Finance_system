@@ -105,6 +105,11 @@
             </a>
         </li>
         <li class="nav-item">
+            <a href="transactions.php" class="nav-link sidebar-link text-decoration-none">
+                <i class="bi bi-journal-richtext"></i> Master Ledger
+            </a>
+        </li>
+        <li class="nav-item">
             <a href="budgeting.php" class="nav-link sidebar-link text-decoration-none">
                 <i class="bi bi-pie-chart"></i> Budget Management
             </a>
