@@ -1,4 +1,3 @@
-<!-- includes/sidebar.php -->
 <style>
     :root {
         --brand-dark: #114227;
@@ -79,19 +78,16 @@
     }
 </style>
 
-<!-- Mobile Overlay -->
 <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
 <nav id="sidebar" class="vh-100 d-flex flex-column p-3 overflow-y-auto">
     
-    <!-- Close button for mobile -->
     <div class="d-lg-none text-end mb-2">
         <button class="btn btn-link text-white-50 p-0" id="closeSidebar">
             <i class="bi bi-x-lg fs-4"></i>
         </button>
     </div>
 
-    <!-- MAIN MENU -->
     <div class="sidebar-heading text-uppercase">Main Menu</div>
     <ul class="nav flex-column mb-auto" id="nav-links">
         <li class="nav-item">
@@ -101,7 +97,6 @@
         </li>
     </ul>
 
-    <!-- FINANCIAL MANAGEMENT -->
     <div class="sidebar-heading text-uppercase">Financial Management</div>
     <ul class="nav flex-column mb-auto">
         <li class="nav-item">
@@ -116,7 +111,6 @@
         </li>
     </ul>
 
-    <!-- PAYMENTS -->
     <div class="sidebar-heading text-uppercase">Payments</div>
     <ul class="nav flex-column mb-auto">
         <li class="nav-item">
@@ -126,7 +120,6 @@
         </li>
     </ul>
 
-    <!-- PROCUREMENT -->
     <div class="sidebar-heading text-uppercase">Procurement</div>
     <ul class="nav flex-column mb-auto">
         <li class="nav-item">
@@ -136,7 +129,6 @@
         </li>
     </ul>
 
-    <!-- HR & PAYROLL -->
     <div class="sidebar-heading text-uppercase">HR & Payroll</div>
     <ul class="nav flex-column mb-auto">
         <li class="nav-item">
@@ -146,7 +138,6 @@
         </li>
     </ul>
 
-    <!-- REPORTS -->
     <div class="sidebar-heading text-uppercase">Reports</div>
     <ul class="nav flex-column mb-auto">
         <li class="nav-item">
@@ -155,6 +146,18 @@
             </a>
         </li>
     </ul>
+
+    <?php if (isset($_SESSION['role']) && $_SESSION['role'] === 'admin'): ?>
+    <div class="sidebar-heading text-uppercase text-warning mt-4">System Admin</div>
+    <ul class="nav flex-column mb-auto">
+        <li class="nav-item">
+            <a href="admin_users.php" class="nav-link sidebar-link text-decoration-none text-warning">
+                <i class="bi bi-shield-lock"></i> User Management
+            </a>
+        </li>
+    </ul>
+    <?php endif; ?>
+
 </nav>
 
 <script>
