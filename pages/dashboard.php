@@ -49,12 +49,7 @@ if (!isset($_SESSION['user_id'])) { header("Location: ../login.php"); exit(); }
                         <h3 id="stat-orders" class="fw-bold">0</h3>
                     </div>
                 </div>
-                <div class="col-md-3">
-                    <div class="card card-stat p-3 shadow-sm border-start border-success border-4">
-                        <small class="text-muted text-uppercase fw-bold">Active Staff</small>
-                        <h3 id="stat-staff" class="fw-bold">0</h3>
-                    </div>
-                </div>
+            
             </div>
 
             <!-- Integrated Modules Grid -->
