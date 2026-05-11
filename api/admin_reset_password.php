@@ -15,25 +15,44 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit();
 }
 
-$data = json_decode(file_get_contents("php://input"));
+// 2. Read Data securely (This trick safely handles both JSON payloads and standard Form Data)
+$data = json_decode(file_get_contents("php://input"), true);
 
-if (empty($data->target_user_id) || empty($data->new_password)) {
-    echo json_encode(['success' => false, 'message' => 'Please select a user and enter a new password.']);
+// Safely extract the variables
+$target_user_id = isset($data['target_user_id']) ? $data['target_user_id'] : (isset($_POST['target_user_id']) ? $_POST['target_user_id'] : '');
+$new_password = isset($data['new_password']) ? $data['new_password'] : (isset($_POST['new_password']) ? $_POST['new_password'] : '');
+
+// 3. ULTRA-SPECIFIC VALIDATION: So we know exactly what is failing!
+if (empty($target_user_id) && empty($new_password)) {
+    echo json_encode(['success' => false, 'message' => 'Error: Both User ID and Password are missing from the request.']);
+    exit();
+}
+if (empty($target_user_id)) {
+    echo json_encode(['success' => false, 'message' => 'Error: User ID is missing! The dropdown is failing to capture the database ID.']);
+    exit();
+}
+if (empty($new_password)) {
+    echo json_encode(['success' => false, 'message' => 'Error: The new password field was not received by the server.']);
     exit();
 }
 
 try {
-    // 2. Hash the new password securely
-    $newHash = password_hash($data->new_password, PASSWORD_DEFAULT);
+    // 4. Hash the new password securely
+    $newHash = password_hash($new_password, PASSWORD_DEFAULT);
 
-    // 3. Update the specific user's password in the database
+    // 5. Update the specific user's password in the database
     $stmt = $pdo->prepare("UPDATE users SET password = :password WHERE id = :id");
     $stmt->execute([
         'password' => $newHash,
-        'id'       => $data->target_user_id
+        'id'       => $target_user_id
     ]);
 
-    echo json_encode(['success' => true, 'message' => 'User password successfully reset.']);
+    // Check if a row was actually modified
+    if ($stmt->rowCount() > 0) {
+        echo json_encode(['success' => true, 'message' => 'User password successfully overwritten!']);
+    } else {
+        echo json_encode(['success' => false, 'message' => 'Password reset failed. Ensure the user ID exists in the database.']);
+    }
 
 } catch (PDOException $e) {
     echo json_encode(['success' => false, 'message' => 'Database error: ' . $e->getMessage()]);
