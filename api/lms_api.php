@@ -89,52 +89,43 @@ if ($action === 'approve') {
 
     if ($successCount > 0) {
         
-        // ==========================================
-        // 3. FINANCE SYNC (AUTOMATIC TUITION)
-        // ==========================================
-        if ($amount_paid > 0) {
-            try {
-                $db_student_id = $student_id ? $student_id : 0; 
+       // ==========================================
+// 3. FINANCE SYNC (AUTOMATIC TUITION)
+// ==========================================
+if ($amount_paid > 0) {
+    try {
+        $db_student_id = $student_id ? $student_id : 0; 
 
-                // HACK: Disable Foreign Key checks temporarily
-                $pdo->exec("SET FOREIGN_KEY_CHECKS=0;");
+        // Disable Foreign Key checks temporarily
+        $pdo->exec("SET FOREIGN_KEY_CHECKS=0;");
 
-               // A. Log the receipt (Changed payment_date to pay_date)
-                $payStmt = $pdo->prepare("
-                    INSERT INTO student_payments (student_id, amount, pay_date, description, status) 
-                    VALUES (:student_id, :amount, NOW(), 'Enrollment Approved', 'Completed')
-                ");
-                $payStmt->execute([
-                    'student_id' => $db_student_id,
-                    'amount'     => $amount_paid
-                ]);
+        // A. Log the receipt (REMOVED 'status' column because it doesn't exist in your DB)
+        $payStmt = $pdo->prepare("
+            INSERT INTO student_payments (student_id, amount, pay_date, description) 
+            VALUES (:student_id, :amount, NOW(), 'Enrollment Approved')
+        ");
+        $payStmt->execute([
+            'student_id' => $db_student_id,
+            'amount'     => $amount_paid
+        ]);
 
-                // B. Log it into the Master Ledger
-                $ledgerStmt = $pdo->prepare("
-                    INSERT INTO transactions (trans_date, account_id, description, amount, type) 
-                    VALUES (NOW(), 1, CONCAT('Enrollment Tuition - Student ID: ', :student_id), :amount, 'Credit')
-                ");
-                $ledgerStmt->execute([
-                    'student_id' => $db_student_id,
-                    'amount'     => $amount_paid
-                ]);
+        // B. Log it into the Master Ledger
+        $ledgerStmt = $pdo->prepare("
+            INSERT INTO transactions (trans_date, account_id, description, amount, type) 
+            VALUES (NOW(), 1, CONCAT('Enrollment Tuition - Student ID: ', :student_id), :amount, 'Credit')
+        ");
+        $ledgerStmt->execute([
+            'student_id' => $db_student_id,
+            'amount'     => $amount_paid
+        ]);
 
-                // Turn the security checks back on!
-                $pdo->exec("SET FOREIGN_KEY_CHECKS=1;");
+        // Turn the security checks back on!
+        $pdo->exec("SET FOREIGN_KEY_CHECKS=1;");
 
-            } catch (PDOException $e) {
-                // Ensure checks are turned back on even if it fails
-                $pdo->exec("SET FOREIGN_KEY_CHECKS=1;");
-                
-                echo json_encode(['status' => 'success', 'message' => "$successCount subjects approved, but Local Finance Sync failed: " . $e->getMessage()]);
-                exit();
-            }
-        }
-
-        echo json_encode(['status' => 'success', 'message' => "$successCount subjects approved and Finance Ledger updated!"]);
-    } else {
-        echo json_encode(['status' => 'error', 'message' => "LMS rejected the approval. Details: " . $lastError]);
+    } catch (PDOException $e) {
+        $pdo->exec("SET FOREIGN_KEY_CHECKS=1;");
+        echo json_encode(['status' => 'success', 'message' => "$successCount subjects approved, but Local Finance Sync failed: " . $e->getMessage()]);
+        exit();
     }
-    exit();
 }
 ?>
