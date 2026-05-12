@@ -13,18 +13,19 @@ require_once '../includes/db.php';
 $year = isset($_GET['year']) ? $_GET['year'] : date('Y');
 
 try {
-    // 1. Your exact query (fetching departments, allocation, and native Payroll spent)
+    // 1. UPDATED QUERY: Added SUM() and GROUP BY to magically squash the database duplicates!
     $query = "
         SELECT 
             d.department_id, 
             d.name as department_name, 
-            COALESCE(b.allocated_amount, 0) as allocated, 
+            COALESCE(SUM(b.allocated_amount), 0) as allocated, 
             (SELECT COALESCE(SUM(ep.gross_amount), 0) 
              FROM employee_payments ep 
              JOIN employees e ON ep.employee_id = e.employee_id 
              WHERE e.department_id = d.department_id AND YEAR(ep.pay_date) = :year1) as payroll_spent 
         FROM departments d 
         LEFT JOIN budgets b ON d.department_id = b.department_id AND b.year = :year2 
+        GROUP BY d.department_id, d.name
         ORDER BY d.name ASC
     ";
 
