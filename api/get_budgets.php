@@ -85,6 +85,7 @@ try {
 
         // Build the array exactly how budgeting.js expects it
         $budgetData[] = [
+            'id' => $deptId,
             'name' => $dept['department_name'],
             'allocated' => $allocated,
             'reserved' => $reserved,
