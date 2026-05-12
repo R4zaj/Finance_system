@@ -3,7 +3,7 @@
 session_start();
 if (!isset($_SESSION['user_id'])) { header("Location: ../login.php"); exit(); }
 
-// 1. ADDED: Connect to the database and fetch the new colleges!
+// Connect to the database and fetch the new colleges!
 require_once '../includes/db.php';
 
 try {
@@ -117,13 +117,11 @@ try {
                             <label class="form-label small fw-bold">Department</label>
                             <select class="form-select" id="dept_id" required>
                                 <option value="" selected disabled>Choose a college/department...</option>
-                                
                                 <?php foreach ($all_departments as $dept): ?>
                                     <option value="<?= htmlspecialchars($dept['department_id']) ?>">
                                         <?= htmlspecialchars($dept['name']) ?>
                                     </option>
                                 <?php endforeach; ?>
-                                
                             </select>
                         </div>
                         <div class="mb-3">
@@ -138,6 +136,7 @@ try {
             </div>
         </div>
     </div>
+
     <div class="modal fade" id="detailsModal" tabindex="-1">
         <div class="modal-dialog modal-lg">
             <div class="modal-content card-custom border-0">
@@ -174,73 +173,5 @@ try {
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script src="../assets/js/budgeting.js"></script>
-    <script> $(document).ready(function() {
-    
-    // Formatting function for Philippine Pesos
-    const formatCurrency = (amount) => {
-        return '₱' + parseFloat(amount).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    };
-
-    // Load Data on Page Load
-    function loadBudgetData() {
-        $.ajax({
-            url: '../api/get_budgets.php',
-            type: 'GET',
-            dataType: 'json',
-            success: function(response) {
-                if(response.success) {
-                    
-                    // 1. Update the Top 4 Summary Cards
-                    $('#tot-allocated').text(formatCurrency(response.summary.allocated));
-                    $('#tot-reserved').text(formatCurrency(response.summary.reserved));
-                    $('#tot-spent').text(formatCurrency(response.summary.spent));
-                    $('#tot-available').text(formatCurrency(response.summary.available));
-
-                    // 2. Update the Department Table
-                    let tableHTML = '';
-                    response.departments.forEach(dept => {
-                        
-                        // Decide progress bar color based on utilization
-                        let barColor = 'bg-success';
-                        if (dept.utilization > 75) barColor = 'bg-warning';
-                        if (dept.utilization > 90) barColor = 'bg-danger';
-
-                        tableHTML += `
-                            <tr>
-                                <td class="fw-semibold text-dark">${dept.name}</td>
-                                <td>${formatCurrency(dept.allocated)}</td>
-                                <td class="text-warning fw-semibold">${formatCurrency(dept.reserved)}</td>
-                                <td class="text-danger fw-semibold">${formatCurrency(dept.spent)}</td>
-                                <td class="text-success fw-bold">${formatCurrency(dept.available)}</td>
-                                <td style="width: 200px;">
-                                    <div class="d-flex justify-content-between small mb-1">
-                                        <span>${dept.utilization.toFixed(1)}% Used</span>
-                                    </div>
-                                    <div class="progress" style="height: 6px;">
-                                        <div class="progress-bar ${barColor}" style="width: ${dept.utilization}%"></div>
-                                    </div>
-                                </td>
-                                <td class="text-end">
-                                    <button class="btn btn-sm btn-light border" title="View Details"><i class="bi bi-eye"></i></button>
-                                </td>
-                            </tr>
-                        `;
-                    });
-
-                    $('#budgetTableBody').html(tableHTML);
-                } else {
-                    $('#budgetTableBody').html(`<tr><td colspan="7" class="text-danger text-center">Error: ${response.message}</td></tr>`);
-                }
-            },
-            error: function() {
-                $('#budgetTableBody').html(`<tr><td colspan="7" class="text-danger text-center">Server connection failed.</td></tr>`);
-            }
-        });
-    }
-
-    // Initialize
-    loadBudgetData();
-});
-    </script>
 </body>
 </html>
