@@ -300,9 +300,14 @@ try {
                 contentType: 'application/json',
                 success: function(response) {
                     if (response.status === 'success' || response.success) {
+                        
+                        // 🚨 NEW: Check if the message contains the word "failed" and alert the user!
+                        if (response.message && response.message.includes("failed")) {
+                            alert("Warning: " + response.message);
+                        }
+
                         $btn.closest('tr').fadeOut(300, function() {
                             $(this).remove();
-                            // Refresh page to show the newly added payment record
                             location.reload(); 
                         });
                     } else {
