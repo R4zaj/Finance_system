@@ -3,7 +3,7 @@
 session_start();
 header('Content-Type: application/json; charset=UTF-8');
 
-// 1. ADDED: Connect to the local Finance Database!
+// Connect to the local Finance Database
 require_once '../includes/db.php'; 
 
 $action = isset($_GET['action']) ? $_GET['action'] : '';
@@ -46,7 +46,7 @@ if ($action === 'approve') {
         exit();
     }
 
-    // 2. ADDED: Extract the payment amount and student ID sent from our tuition.php UI
+    // Extract the payment amount and student ID sent from our tuition.php UI
     $amount_paid = isset($data->amount) ? (float)$data->amount : 0.00;
     $student_id = isset($data->student_id) ? $data->student_id : null;
 
@@ -56,7 +56,6 @@ if ($action === 'approve') {
     // Loop through every class the student is enrolling in and approve it
     foreach ($data->enrollment_ids as $eid) {
         
-        // The LMS expects strict JSON, not Form Data!
         $postData = json_encode([
             'enrollment_id' => $eid,
             'status'        => 'Approved'
@@ -97,11 +96,10 @@ if ($action === 'approve') {
             try {
                 $db_student_id = $student_id ? $student_id : 0; 
 
-                // 🚨 HACK: Disable Foreign Key checks temporarily so the local DB 
-                // doesn't reject the LMS student_id if they haven't synced locally yet!
+                // HACK: Disable Foreign Key checks temporarily
                 $pdo->exec("SET FOREIGN_KEY_CHECKS=0;");
 
-                // A. Log the receipt (Changed 'Paid' to 'Completed' to match your database ENUM)
+                // A. Log the receipt
                 $payStmt = $pdo->prepare("
                     INSERT INTO student_payments (student_id, amount, payment_date, description, status) 
                     VALUES (:student_id, :amount, NOW(), 'Enrollment Approved', 'Completed')
@@ -111,7 +109,7 @@ if ($action === 'approve') {
                     'amount'     => $amount_paid
                 ]);
 
-                // B. Log it into the Master Ledger (Assuming Account ID 1 is Cash/Bank)
+                // B. Log it into the Master Ledger
                 $ledgerStmt = $pdo->prepare("
                     INSERT INTO transactions (trans_date, account_id, description, amount, type) 
                     VALUES (NOW(), 1, CONCAT('Enrollment Tuition - Student ID: ', :student_id), :amount, 'Credit')
@@ -128,17 +126,8 @@ if ($action === 'approve') {
                 // Ensure checks are turned back on even if it fails
                 $pdo->exec("SET FOREIGN_KEY_CHECKS=1;");
                 
-                // We send the exact SQL error back so you can see it!
                 echo json_encode(['status' => 'success', 'message' => "$successCount subjects approved, but Local Finance Sync failed: " . $e->getMessage()]);
                 exit();
-            }
-        }
-
-        echo json_encode(['status' => 'success', 'message' => "$successCount subjects approved and Finance Ledger updated!"]);
-    } else {
-        echo json_encode(['status' => 'error', 'message' => "LMS rejected the approval. Details: " . $lastError]);
-    }
-    exit();
             }
         }
 
