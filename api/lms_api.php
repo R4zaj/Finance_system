@@ -46,9 +46,10 @@ if ($action === 'approve') {
         exit();
     }
 
-    // Extract payment info from the tuition.php UI request
+    // Extract payment info and student name from the UI request
     $amount_paid = isset($data->amount) ? (float)$data->amount : 0.00;
     $student_id = isset($data->student_id) ? $data->student_id : null;
+    $student_full_name = isset($data->student_name) ? $data->student_name : 'LMS Student';
 
     $successCount = 0;
     $lastError = "";
@@ -86,48 +87,52 @@ if ($action === 'approve') {
     }
 
     // If LMS approval worked, handle local Finance recording
-    // ... inside if ($successCount > 0) ...
-if ($amount_paid > 0) {
-    try {
-        $db_student_id = $student_id ? $student_id : 0;
-        $student_full_name = isset($data->student_name) ? $data->student_name : 'LMS Student';
-
-        $pdo->exec("SET FOREIGN_KEY_CHECKS=0;");
-
-        // NEW: Check if the student exists locally. If not, create them!
-        $checkStudent = $pdo->prepare("SELECT student_id FROM students WHERE student_id = :id");
-        $checkStudent->execute(['id' => $db_student_id]);
+    if ($successCount > 0) {
         
-        if (!$checkStudent->fetch()) {
-            // Split full name into first and last name for your table
-            $nameParts = explode(' ', $student_full_name, 2);
-            $fName = $nameParts[0];
-            $lName = isset($nameParts[1]) ? $nameParts[1] : '';
+        // FINANCE SYNC (AUTOMATIC TUITION)
+        if ($amount_paid > 0) {
+            try {
+                $db_student_id = $student_id ? $student_id : 0; 
 
-            $regStudent = $pdo->prepare("INSERT INTO students (student_id, first_name, last_name, enrollment_date) VALUES (:id, :fname, :lname, NOW())");
-            $regStudent->execute([
-                'id' => $db_student_id,
-                'fname' => $fName,
-                'lname' => $lName
-            ]);
+                // Disable Foreign Key checks temporarily
+                $pdo->exec("SET FOREIGN_KEY_CHECKS=0;");
+
+                // Check if the student exists locally. If not, create them!
+                $checkStudent = $pdo->prepare("SELECT student_id FROM students WHERE student_id = :id");
+                $checkStudent->execute(['id' => $db_student_id]);
+                
+                if (!$checkStudent->fetch()) {
+                    // Split full name into first and last name for your table
+                    $nameParts = explode(' ', $student_full_name, 2);
+                    $fName = $nameParts[0];
+                    $lName = isset($nameParts[1]) ? $nameParts[1] : '';
+
+                    $regStudent = $pdo->prepare("INSERT INTO students (student_id, first_name, last_name, enrollment_date) VALUES (:id, :fname, :lname, NOW())");
+                    $regStudent->execute([
+                        'id' => $db_student_id,
+                        'fname' => $fName,
+                        'lname' => $lName
+                    ]);
+                }
+
+                // A. Log the receipt
+                $payStmt = $pdo->prepare("INSERT INTO student_payments (student_id, amount, pay_date, description) VALUES (:student_id, :amount, NOW(), 'Enrollment Approved')");
+                $payStmt->execute(['student_id' => $db_student_id, 'amount' => $amount_paid]);
+
+                // B. Log to Master Ledger
+                $ledgerStmt = $pdo->prepare("INSERT INTO transactions (trans_date, account_id, description, amount, type) VALUES (NOW(), 1, CONCAT('Enrollment Tuition - ', :sname), :amount, 'Credit')");
+                $ledgerStmt->execute(['sname' => $student_full_name, 'amount' => $amount_paid]);
+
+                // Turn the security checks back on!
+                $pdo->exec("SET FOREIGN_KEY_CHECKS=1;");
+
+            } catch (PDOException $e) {
+                $pdo->exec("SET FOREIGN_KEY_CHECKS=1;");
+                echo json_encode(['status' => 'success', 'message' => "Approved, but Finance Sync failed: " . $e->getMessage()]);
+                exit();
+            }
         }
-
-        // A. Log the receipt
-        $payStmt = $pdo->prepare("INSERT INTO student_payments (student_id, amount, pay_date, description) VALUES (:student_id, :amount, NOW(), 'Enrollment Approved')");
-        $payStmt->execute(['student_id' => $db_student_id, 'amount' => $amount_paid]);
-
-        // B. Log to Master Ledger
-        $ledgerStmt = $pdo->prepare("INSERT INTO transactions (trans_date, account_id, description, amount, type) VALUES (NOW(), 1, CONCAT('Enrollment Tuition - ', :sname), :amount, 'Credit')");
-        $ledgerStmt->execute(['sname' => $student_full_name, 'amount' => $amount_paid]);
-
-        $pdo->exec("SET FOREIGN_KEY_CHECKS=1;");
-
-    } catch (PDOException $e) {
-        $pdo->exec("SET FOREIGN_KEY_CHECKS=1;");
-        echo json_encode(['status' => 'success', 'message' => "Approved, but Finance Sync failed: " . $e->getMessage()]);
-        exit();
-    }
-}
+        
         // If everything worked perfectly
         echo json_encode(['status' => 'success', 'message' => "$successCount subjects approved and Finance Ledger updated!"]);
     } else {
