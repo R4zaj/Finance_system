@@ -2,6 +2,23 @@
 // pages/tuition.php
 session_start();
 if (!isset($_SESSION['user_id'])) { header("Location: ../login.php"); exit(); }
+
+require_once '../includes/db.php';
+
+// Fetch recent tuition collections to display on the page load
+try {
+    // We use LEFT JOIN so even if the LMS hasn't fully synced the student name locally, it won't crash
+    $stmt = $pdo->query("
+        SELECT sp.payment_id, sp.payment_date, sp.amount, sp.description, sp.status, s.first_name, s.last_name 
+        FROM student_payments sp
+        LEFT JOIN students s ON sp.student_id = s.student_id
+        ORDER BY sp.payment_date DESC 
+        LIMIT 15
+    ");
+    $recent_collections = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (PDOException $e) {
+    $recent_collections = [];
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -56,15 +73,41 @@ if (!isset($_SESSION['user_id'])) { header("Location: ../login.php"); exit(); }
                     <table class="table table-hover table-custom align-middle mb-0 bg-white">
                         <thead class="bg-light">
                             <tr>
-                                <th>Date</th>
+                                <th class="ps-4">Date</th>
                                 <th>Student Name</th>
                                 <th>Status</th>
                                 <th>Description / Term</th>
-                                <th class="text-end">Amount Paid</th>
+                                <th class="text-end pe-4">Amount Paid</th>
                             </tr>
                         </thead>
                         <tbody id="tuitionTableBody">
-                            <tr><td colspan="5" class="text-center py-4">Loading data...</td></tr>
+                            <?php if (empty($recent_collections)): ?>
+                                <tr><td colspan="5" class="text-center py-4 text-muted">No recent collections found.</td></tr>
+                            <?php else: ?>
+                                <?php foreach ($recent_collections as $payment): ?>
+                                    <tr>
+                                        <td class="ps-4 text-muted small"><?= date('M d, Y', strtotime($payment['payment_date'])) ?></td>
+                                        <td class="fw-bold text-dark">
+                                            <?= htmlspecialchars(trim($payment['first_name'] . ' ' . $payment['last_name'])) ?: 'LMS Enrollee' ?>
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-primary">Paid</span>
+                                        </td>
+                                        <td>
+                                            <?php if (strpos($payment['description'], 'Enrollment Approved') !== false): ?>
+                                                <span class="badge bg-success bg-opacity-10 text-success border border-success">
+                                                    <i class="bi bi-check-circle me-1"></i> Enrollment Approved
+                                                </span>
+                                            <?php else: ?>
+                                                <span class="text-muted"><?= htmlspecialchars($payment['description']) ?></span>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td class="fw-bold text-success text-end pe-4">
+                                            +₱<?= number_format($payment['amount'], 2) ?>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
                         </tbody>
                     </table>
                 </div>
@@ -184,7 +227,6 @@ if (!isset($_SESSION['user_id'])) { header("Location: ../login.php"); exit(); }
                             if (student.enrollments && student.enrollments.length > 0) {
                                 subjectCount = student.enrollments.length;
                                 $.each(student.enrollments, function(j, cls) {
-                                    // Capture the specific enrollment_id the LMS needs
                                     enrollmentIds.push(cls.enrollment_id); 
                                     courseCodes.push(cls.course_code);
                                     totalUnits += parseInt(cls.units) || 0;
@@ -228,7 +270,6 @@ if (!isset($_SESSION['user_id'])) { header("Location: ../login.php"); exit(); }
 
         // 2. Handle the "Approve" button click to POST to the LMS
         $(document).on('click', '.btn-approve', function() {
-            // Retrieve the array of enrollment_ids from the button
             let eIds = $(this).data('ids');
             let $btn = $(this);
             
@@ -237,16 +278,14 @@ if (!isset($_SESSION['user_id'])) { header("Location: ../login.php"); exit(); }
             $.ajax({
                 url: '../api/lms_api.php?action=approve',
                 type: 'POST',
-                // Send the array of IDs exactly as our PHP bridge expects
                 data: JSON.stringify({ enrollment_ids: eIds }), 
                 contentType: 'application/json',
                 success: function(response) {
                     if (response.status === 'success' || response.success) {
                         $btn.closest('tr').fadeOut(300, function() {
                             $(this).remove();
-                            if ($('#pendingEnrollmentsBody tr').length === 0) {
-                                $('#pendingEnrollmentsBody').html('<tr><td colspan="4" class="text-center py-4 text-muted">No pending enrollments from the LMS to approve.</td></tr>');
-                            }
+                            // NEW: Reload the page instantly to show the new payment in the main table!
+                            location.reload(); 
                         });
                     } else {
                         alert('LMS Error: ' + (response.message || 'Approval failed.'));
