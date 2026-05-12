@@ -5,13 +5,13 @@ if (!isset($_SESSION['user_id'])) { header("Location: ../login.php"); exit(); }
 
 require_once '../includes/db.php';
 
-// Fetch recent tuition collections to display on the page load
+// Fetch recent tuition collections
 try {
     $stmt = $pdo->query("
-        SELECT sp.payment_id, sp.payment_date, sp.amount, sp.description, sp.status, s.first_name, s.last_name 
+        SELECT sp.payment_id, sp.pay_date as payment_date, sp.amount, sp.description, s.first_name, s.last_name 
         FROM student_payments sp
         LEFT JOIN students s ON sp.student_id = s.student_id
-        ORDER BY sp.payment_date DESC 
+        ORDER BY sp.pay_date DESC 
         LIMIT 15
     ");
     $recent_collections = $stmt->fetchAll(PDO::FETCH_ASSOC);
