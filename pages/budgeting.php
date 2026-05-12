@@ -2,6 +2,16 @@
 // pages/budgeting.php
 session_start();
 if (!isset($_SESSION['user_id'])) { header("Location: ../login.php"); exit(); }
+
+// 1. ADDED: Connect to the database and fetch the new colleges!
+require_once '../includes/db.php';
+
+try {
+    $deptStmt = $pdo->query("SELECT department_id, name FROM departments ORDER BY name ASC");
+    $all_departments = $deptStmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (PDOException $e) {
+    $all_departments = [];
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -37,7 +47,6 @@ if (!isset($_SESSION['user_id'])) { header("Location: ../login.php"); exit(); }
                 </div>
             </div>
 
-            <!-- College-Wide Summary -->
             <div class="row g-4 mb-4">
                 <div class="col-md-3">
                     <div class="card card-custom p-3 border-start border-primary border-4">
@@ -65,7 +74,6 @@ if (!isset($_SESSION['user_id'])) { header("Location: ../login.php"); exit(); }
                 </div>
             </div>
 
-            <!-- Departmental Budget Table -->
             <div class="card card-custom shadow-sm p-0">
                 <div class="card-header bg-white p-3 border-bottom">
                     <h6 class="fw-bold mb-0">Departmental Budget vs Actuals</h6>
@@ -92,7 +100,6 @@ if (!isset($_SESSION['user_id'])) { header("Location: ../login.php"); exit(); }
         </main>
     </div>
 
-    <!-- Allocate Budget Modal -->
     <div class="modal fade" id="allocateModal" tabindex="-1">
         <div class="modal-dialog">
             <div class="modal-content card-custom">
@@ -104,20 +111,24 @@ if (!isset($_SESSION['user_id'])) { header("Location: ../login.php"); exit(); }
                     <div class="modal-body bg-light">
                         <div class="mb-3">
                             <label class="form-label small fw-bold">Fiscal Year</label>
-                            <input type="number" class="form-control" id="fiscal_year" required>
+                            <input type="number" class="form-control" id="fiscal_year" value="<?= date('Y') ?>" required>
                         </div>
                         <div class="mb-3">
                             <label class="form-label small fw-bold">Department</label>
                             <select class="form-select" id="dept_id" required>
-                                <!-- Example static data, in production populate via AJAX -->
-                                <option value="1">IT Department</option>
-                                <option value="2">HR Department</option>
-                                <option value="3">Facilities & Maintenance</option>
+                                <option value="" selected disabled>Choose a college/department...</option>
+                                
+                                <?php foreach ($all_departments as $dept): ?>
+                                    <option value="<?= htmlspecialchars($dept['department_id']) ?>">
+                                        <?= htmlspecialchars($dept['name']) ?>
+                                    </option>
+                                <?php endforeach; ?>
+                                
                             </select>
                         </div>
                         <div class="mb-3">
                             <label class="form-label small fw-bold">Allocated Amount (₱)</label>
-                            <input type="number" step="0.01" class="form-control" id="allocated_amount" required>
+                            <input type="number" step="0.01" min="1" class="form-control" id="allocated_amount" required>
                         </div>
                     </div>
                     <div class="modal-footer border-0">
