@@ -7,7 +7,6 @@ require_once '../includes/db.php';
 
 // Fetch recent tuition collections to display on the page load
 try {
-    // We use LEFT JOIN so even if the LMS hasn't fully synced the student name locally, it won't crash
     $stmt = $pdo->query("
         SELECT sp.payment_id, sp.payment_date, sp.amount, sp.description, sp.status, s.first_name, s.last_name 
         FROM student_payments sp
@@ -91,19 +90,19 @@ try {
                                             <?= htmlspecialchars(trim($payment['first_name'] . ' ' . $payment['last_name'])) ?: 'LMS Enrollee' ?>
                                         </td>
                                         <td>
-                                            <span class="badge bg-primary">Paid</span>
+                                            <span class="badge bg-success bg-opacity-10 text-success border border-success">Completed</span>
                                         </td>
                                         <td>
                                             <?php if (strpos($payment['description'], 'Enrollment Approved') !== false): ?>
-                                                <span class="badge bg-success bg-opacity-10 text-success border border-success">
+                                                <span class="fw-semibold text-success">
                                                     <i class="bi bi-check-circle me-1"></i> Enrollment Approved
                                                 </span>
                                             <?php else: ?>
                                                 <span class="text-muted"><?= htmlspecialchars($payment['description']) ?></span>
                                             <?php endif; ?>
                                         </td>
-                                        <td class="fw-bold text-success text-end pe-4">
-                                            +₱<?= number_format($payment['amount'], 2) ?>
+                                        <td class="fw-bold text-dark text-end pe-4">
+                                            ₱<?= number_format($payment['amount'], 2) ?>
                                         </td>
                                     </tr>
                                 <?php endforeach; ?>
@@ -172,11 +171,11 @@ try {
                                         <th class="ps-4">Student Name</th>
                                         <th>Program Details</th>
                                         <th>Status</th>
-                                        <th class="text-end pe-4">Action</th>
+                                        <th class="text-end pe-4" style="width: 250px;">Action</th>
                                     </tr>
                                 </thead>
                                 <tbody id="pendingEnrollmentsBody">
-                                    </tbody>
+                                </tbody>
                             </table>
                         </div>
                     </div>
@@ -191,8 +190,6 @@ try {
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     
-    <script src="../assets/js/tuition.js"></script>
-
     <script>
     $(document).ready(function() {
     
@@ -217,8 +214,9 @@ try {
                             
                             let studentName = student.full_name;
                             let studentEmail = student.email || 'No Email Provided';
+                            // We need the ID to map it locally
+                            let localStudentId = student.student_id || student.id; 
                             
-                            // Array to hold all the enrollment IDs for this student
                             let enrollmentIds = [];
                             let courseCodes = [];
                             let totalUnits = 0;
@@ -233,9 +231,9 @@ try {
                                 });
                             }
 
-                            // Convert the array to a JSON string so we can attach it to the button safely
                             let idsJson = JSON.stringify(enrollmentIds);
 
+                            // UPDATED UI: We added a dynamic input box next to the approve button!
                             html += `
                                 <tr>
                                     <td class="ps-4">
@@ -248,9 +246,15 @@ try {
                                     </td>
                                     <td><span class="badge bg-warning text-dark">Pending</span></td>
                                     <td class="text-end pe-4">
-                                        <button class="btn btn-sm btn-success btn-approve" data-ids='${idsJson}'>
-                                            <i class="bi bi-check-lg"></i> Approve
-                                        </button>
+                                        <div class="d-flex justify-content-end align-items-center gap-1">
+                                            <div class="input-group input-group-sm" style="width: 140px;">
+                                                <span class="input-group-text bg-light border-success text-success">₱</span>
+                                                <input type="number" class="form-control border-success payment-amount-input" placeholder="Amount" value="5000" min="1">
+                                            </div>
+                                            <button class="btn btn-sm btn-success btn-approve" data-ids='${idsJson}' data-studentid='${localStudentId}'>
+                                                <i class="bi bi-check-lg"></i>
+                                            </button>
+                                        </div>
                                     </td>
                                 </tr>
                             `;
@@ -268,33 +272,47 @@ try {
             });
         }
 
-        // 2. Handle the "Approve" button click to POST to the LMS
+        // 2. Handle the "Approve" button click
         $(document).on('click', '.btn-approve', function() {
             let eIds = $(this).data('ids');
-            let $btn = $(this);
+            let sId = $(this).data('studentid');
             
+            // Look into this specific row and grab the amount the user typed!
+            let amountPaid = $(this).closest('td').find('.payment-amount-input').val();
+            
+            if(!amountPaid || amountPaid <= 0) {
+                alert("Please enter a valid tuition amount.");
+                return;
+            }
+
+            let $btn = $(this);
             $btn.html('<span class="spinner-border spinner-border-sm"></span>').prop('disabled', true);
 
             $.ajax({
                 url: '../api/lms_api.php?action=approve',
                 type: 'POST',
-                data: JSON.stringify({ enrollment_ids: eIds }), 
+                // We are now sending BOTH the enrollment IDs AND the collected amount!
+                data: JSON.stringify({ 
+                    enrollment_ids: eIds, 
+                    student_id: sId,
+                    amount: parseFloat(amountPaid) 
+                }), 
                 contentType: 'application/json',
                 success: function(response) {
                     if (response.status === 'success' || response.success) {
                         $btn.closest('tr').fadeOut(300, function() {
                             $(this).remove();
-                            // NEW: Reload the page instantly to show the new payment in the main table!
+                            // Refresh page to show the newly added payment record
                             location.reload(); 
                         });
                     } else {
                         alert('LMS Error: ' + (response.message || 'Approval failed.'));
-                        $btn.html('<i class="bi bi-check-lg"></i> Approve').prop('disabled', false);
+                        $btn.html('<i class="bi bi-check-lg"></i>').prop('disabled', false);
                     }
                 },
                 error: function() {
                     alert('Server error while talking to the LMS API.');
-                    $btn.html('<i class="bi bi-check-lg"></i> Approve').prop('disabled', false);
+                    $btn.html('<i class="bi bi-check-lg"></i>').prop('disabled', false);
                 }
             });
         });
