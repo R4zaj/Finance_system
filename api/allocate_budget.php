@@ -12,24 +12,36 @@ if (empty($data->department_id) || empty($data->year) || !isset($data->amount)) 
 }
 
 try {
-    // UPSERT: We use :amount1 and :amount2 to satisfy strict mode!
-    $stmt = $pdo->prepare("
-        INSERT INTO budgets (department_id, year, allocated_amount) 
-        VALUES (:dept_id, :year, :amount1)
-        ON DUPLICATE KEY UPDATE allocated_amount = :amount2
-    ");
-    
-    // We pass the amount twice to match the two placeholders
-    $stmt->execute([
-        'dept_id' => $data->department_id,
-        'year'    => $data->year,
-        'amount1' => $data->amount,
-        'amount2' => $data->amount
+    // 1. Manually check if a budget already exists for this exact department and year
+    $checkStmt = $pdo->prepare("SELECT budget_id FROM budgets WHERE department_id = :dept_id AND year = :year");
+    $checkStmt->execute([
+        'dept_id' => $data->department_id, 
+        'year' => $data->year
     ]);
+    $existingBudget = $checkStmt->fetch(PDO::FETCH_ASSOC);
 
-    echo json_encode(['success' => true, 'message' => 'Budget allocated successfully.']);
+    if ($existingBudget) {
+        // 2. UPSERT: It exists! UPDATE the existing amount.
+        $updateStmt = $pdo->prepare("UPDATE budgets SET allocated_amount = :amount WHERE budget_id = :budget_id");
+        $updateStmt->execute([
+            'amount' => $data->amount,
+            'budget_id' => $existingBudget['budget_id']
+        ]);
+        
+        echo json_encode(['success' => true, 'message' => 'Budget allocation successfully updated.']);
+    } else {
+        // 3. UPSERT: It does NOT exist! INSERT a brand new record.
+        $insertStmt = $pdo->prepare("INSERT INTO budgets (department_id, year, allocated_amount) VALUES (:dept_id, :year, :amount)");
+        $insertStmt->execute([
+            'dept_id' => $data->department_id,
+            'year' => $data->year,
+            'amount' => $data->amount
+        ]);
+        
+        echo json_encode(['success' => true, 'message' => 'New budget allocated successfully.']);
+    }
+
 } catch (PDOException $e) {
-    // We expose the real error message now so it can't hide from us!
     echo json_encode(['success' => false, 'message' => 'Database error: ' . $e->getMessage()]);
 }
 ?>
