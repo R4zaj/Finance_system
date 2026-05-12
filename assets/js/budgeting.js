@@ -4,7 +4,7 @@ $(document).ready(function() {
     const currentYear = new Date().getFullYear();
     loadBudgets(currentYear);
 
-    // Handle Budget Allocation Form Submit
+    // 1. Handle Budget Allocation Form Submit
     $('#allocateForm').on('submit', function(e) {
         e.preventDefault();
         
@@ -14,6 +14,9 @@ $(document).ready(function() {
             amount: parseFloat($('#allocated_amount').val())
         };
 
+        let $btn = $(this).find('button[type="submit"]');
+        $btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm"></span> Saving...');
+
         $.ajax({
             url: '../api/allocate_budget.php',
             type: 'POST',
@@ -22,30 +25,32 @@ $(document).ready(function() {
             success: function(response) {
                 if (response.success) {
                     $('#allocateModal').modal('hide');
-                    loadBudgets($('#fiscal_year').val());
+                    loadBudgets($('#fiscal_year').val()); // Silently redraws the table!
                     $('#allocateForm')[0].reset();
                 } else {
                     alert("Error: " + response.message);
                 }
+            },
+            error: function() {
+                alert("Server communication error.");
+            },
+            complete: function() {
+                $btn.prop('disabled', false).html('Save Allocation');
             }
         });
     });
 
-    // --- NEW: Click Listener for the "View Details" Eye Button ---
+    // 2. View Details Event Delegation (Bulletproof)
     $(document).on('click', '.btn-view-details', function() {
         let deptId = $(this).data('id');
         let deptName = $(this).data('name');
         let year = $('#fiscal_year').val() || currentYear; 
 
-        // Update Modal Headers
         $('#detailDeptName').text(deptName);
         $('#detailYear').text('Expense Breakdown for ' + year);
         $('#detailTableBody').html('<tr><td colspan="4" class="text-center py-4"><span class="spinner-border spinner-border-sm text-success"></span> Loading records...</td></tr>');
-        
-        // Open the Modal
         $('#detailsModal').modal('show');
 
-        // Fetch the details
         $.ajax({
             url: `../api/get_department_details.php?dept_id=${deptId}&year=${year}`,
             type: 'GET',
@@ -81,21 +86,42 @@ $(document).ready(function() {
             }
         });
     });
+
+    // 3. Edit Budget Event Delegation (Bulletproof)
+    $(document).on('click', '.btn-edit-budget', function() {
+        let id = $(this).data('id');
+        let amount = $(this).data('amount');
+        let year = $('#fiscal_year').val() || currentYear;
+
+        $('#dept_id').val(id);
+        $('#allocated_amount').val(amount);
+        $('#fiscal_year').val(year);
+        $('#allocateModal').modal('show');
+    });
 });
 
+// --- Outside the Document Ready ---
+
 function loadBudgets(year) {
+    // Show loading state in table while waiting
+    $('#budgetTableBody').html('<tr><td colspan="7" class="text-center py-4"><span class="spinner-border text-success"></span></td></tr>');
+
     $.ajax({
         url: '../api/get_budgets.php',
         type: 'GET',
         data: { year: year },
         dataType: 'json',
         success: function(response) {
-            // Note: Updated to look for response.departments to match the new API
             if (response.success && response.departments) {
                 renderBudgetTable(response.departments);
             } else if (response.success && response.data) {
                 renderBudgetTable(response.data);
+            } else {
+                $('#budgetTableBody').html('<tr><td colspan="7" class="text-center text-danger py-4">Failed to load budget data.</td></tr>');
             }
+        },
+        error: function() {
+            $('#budgetTableBody').html('<tr><td colspan="7" class="text-center text-danger py-4">Server connection failed.</td></tr>');
         }
     });
 }
@@ -109,20 +135,15 @@ function renderBudgetTable(departments) {
     let totalAllocated = 0, totalSpent = 0, totalReserved = 0;
 
     $.each(departments, function(i, dept) {
-        const allocated = parseFloat(dept.allocated);
+        const allocated = parseFloat(dept.allocated) || 0;
+        const spent = parseFloat(dept.spent !== undefined ? dept.spent : dept.actual_spent) || 0;
+        const reserved = parseFloat(dept.reserved) || 0;
         
-        // Check for either data structure (old or new API)
-        const spent = parseFloat(dept.spent !== undefined ? dept.spent : dept.actual_spent);
-        const reserved = parseFloat(dept.reserved);
+        // Robust fallback to ensure IDs don't break the HTML string
+        const deptId = dept.id || dept.department_id || '';
+        const deptName = dept.name || dept.department_name || 'Unknown Department';
         
-        // Ensure we have an ID for the edit function
-        const deptId = dept.id !== undefined ? dept.id : dept.department_id;
-        const deptName = dept.name !== undefined ? dept.name : dept.department_name;
-        
-        // ERP Logic: Available = Allocated - Spent - Reserved
         const available = allocated - spent - reserved;
-        
-        // Progress Bar Calculation
         const spentPct = allocated > 0 ? (spent / allocated) * 100 : 0;
         const reservedPct = allocated > 0 ? (reserved / allocated) * 100 : 0;
         const barColor = available < 0 ? 'bg-danger' : 'bg-success';
@@ -148,7 +169,7 @@ function renderBudgetTable(departments) {
                     <button class="btn btn-sm btn-light border btn-view-details me-1" data-id="${deptId}" data-name="${deptName}" title="View Details">
                         <i class="bi bi-eye"></i>
                     </button>
-                    <button class="btn btn-sm btn-light text-primary border" onclick="editBudget(${deptId}, ${allocated})" title="Update Budget">
+                    <button class="btn btn-sm btn-light text-primary border btn-edit-budget" data-id="${deptId}" data-amount="${allocated}" title="Update Budget">
                         <i class="bi bi-pencil-square"></i>
                     </button>
                 </td>
@@ -156,17 +177,8 @@ function renderBudgetTable(departments) {
         `);
     });
 
-    // Update Top Summary Cards
     $('#tot-allocated').text(fmt(totalAllocated));
     $('#tot-spent').text(fmt(totalSpent));
     $('#tot-reserved').text(fmt(totalReserved));
     $('#tot-available').text(fmt(totalAllocated - totalSpent - totalReserved));
-}
-
-// Helper to open modal for editing
-function editBudget(id, amount) {
-    $('#dept_id').val(id);
-    $('#allocated_amount').val(amount);
-    $('#fiscal_year').val(new Date().getFullYear());
-    $('#allocateModal').modal('show');
 }
