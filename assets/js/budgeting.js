@@ -30,6 +30,57 @@ $(document).ready(function() {
             }
         });
     });
+
+    // --- NEW: Click Listener for the "View Details" Eye Button ---
+    $(document).on('click', '.btn-view-details', function() {
+        let deptId = $(this).data('id');
+        let deptName = $(this).data('name');
+        let year = $('#fiscal_year').val() || currentYear; 
+
+        // Update Modal Headers
+        $('#detailDeptName').text(deptName);
+        $('#detailYear').text('Expense Breakdown for ' + year);
+        $('#detailTableBody').html('<tr><td colspan="4" class="text-center py-4"><span class="spinner-border spinner-border-sm text-success"></span> Loading records...</td></tr>');
+        
+        // Open the Modal
+        $('#detailsModal').modal('show');
+
+        // Fetch the details
+        $.ajax({
+            url: `../api/get_department_details.php?dept_id=${deptId}&year=${year}`,
+            type: 'GET',
+            dataType: 'json',
+            success: function(res) {
+                if(res.success) {
+                    let rows = '';
+                    if (res.data.length === 0) {
+                        rows = '<tr><td colspan="4" class="text-center text-muted py-3">No expenses recorded for this department yet.</td></tr>';
+                    } else {
+                        res.data.forEach(item => {
+                            let badge = item.type === 'Payroll' 
+                                ? '<span class="badge bg-info bg-opacity-10 text-info border border-info">Payroll</span>' 
+                                : '<span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary">Ledger</span>';
+
+                            rows += `
+                                <tr>
+                                    <td class="ps-4 text-muted small">${item.date}</td>
+                                    <td>${badge}</td>
+                                    <td>${item.description}</td>
+                                    <td class="text-end pe-4 fw-bold text-danger">₱${parseFloat(item.amount).toLocaleString('en-PH', {minimumFractionDigits: 2})}</td>
+                                </tr>
+                            `;
+                        });
+                    }
+                    $('#detailTableBody').html(rows);
+                } else {
+                    $('#detailTableBody').html(`<tr><td colspan="4" class="text-danger text-center">${res.message}</td></tr>`);
+                }
+            },
+            error: function() {
+                $('#detailTableBody').html(`<tr><td colspan="4" class="text-danger text-center">Failed to fetch data.</td></tr>`);
+            }
+        });
+    });
 });
 
 function loadBudgets(year) {
@@ -39,7 +90,10 @@ function loadBudgets(year) {
         data: { year: year },
         dataType: 'json',
         success: function(response) {
-            if (response.success) {
+            // Note: Updated to look for response.departments to match the new API
+            if (response.success && response.departments) {
+                renderBudgetTable(response.departments);
+            } else if (response.success && response.data) {
                 renderBudgetTable(response.data);
             }
         }
@@ -56,8 +110,14 @@ function renderBudgetTable(departments) {
 
     $.each(departments, function(i, dept) {
         const allocated = parseFloat(dept.allocated);
-        const spent = parseFloat(dept.actual_spent);
+        
+        // Check for either data structure (old or new API)
+        const spent = parseFloat(dept.spent !== undefined ? dept.spent : dept.actual_spent);
         const reserved = parseFloat(dept.reserved);
+        
+        // Ensure we have an ID for the edit function
+        const deptId = dept.id !== undefined ? dept.id : dept.department_id;
+        const deptName = dept.name !== undefined ? dept.name : dept.department_name;
         
         // ERP Logic: Available = Allocated - Spent - Reserved
         const available = allocated - spent - reserved;
@@ -73,7 +133,7 @@ function renderBudgetTable(departments) {
 
         $tbody.append(`
             <tr>
-                <td class="fw-bold">${dept.department_name}</td>
+                <td class="fw-bold">${deptName}</td>
                 <td>${fmt(allocated)}</td>
                 <td class="text-warning">${fmt(reserved)}</td>
                 <td class="text-danger">${fmt(spent)}</td>
@@ -85,8 +145,11 @@ function renderBudgetTable(departments) {
                     </div>
                 </td>
                 <td class="text-end">
-                    <button class="btn btn-sm btn-light text-primary" onclick="editBudget(${dept.department_id}, ${allocated})">
-                        <i class="bi bi-pencil-square"></i> Update
+                    <button class="btn btn-sm btn-light border btn-view-details me-1" data-id="${deptId}" data-name="${deptName}" title="View Details">
+                        <i class="bi bi-eye"></i>
+                    </button>
+                    <button class="btn btn-sm btn-light text-primary border" onclick="editBudget(${deptId}, ${allocated})" title="Update Budget">
+                        <i class="bi bi-pencil-square"></i>
                     </button>
                 </td>
             </tr>
