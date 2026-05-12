@@ -99,9 +99,9 @@ if ($action === 'approve') {
                 // HACK: Disable Foreign Key checks temporarily
                 $pdo->exec("SET FOREIGN_KEY_CHECKS=0;");
 
-                // A. Log the receipt
+               // A. Log the receipt (Changed payment_date to pay_date)
                 $payStmt = $pdo->prepare("
-                    INSERT INTO student_payments (student_id, amount, payment_date, description, status) 
+                    INSERT INTO student_payments (student_id, amount, pay_date, description, status) 
                     VALUES (:student_id, :amount, NOW(), 'Enrollment Approved', 'Completed')
                 ");
                 $payStmt->execute([
