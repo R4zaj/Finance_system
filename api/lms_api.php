@@ -3,6 +3,9 @@
 session_start();
 header('Content-Type: application/json; charset=UTF-8');
 
+// 1. ADDED: Connect to the local Finance Database!
+require_once '../includes/db.php'; 
+
 $action = isset($_GET['action']) ? $_GET['action'] : '';
 
 $baseUrl = "https://artisanslms.onrender.com/backend/api/export_tuition.php";
@@ -33,7 +36,7 @@ if ($action === 'get_pending') {
 }
 
 // ---------------------------------------------------------
-// ACTION 2: POST APPROVAL TO LMS (UPDATED FOR JSON PAYLOAD)
+// ACTION 2: POST APPROVAL TO LMS & SYNC FINANCE
 // ---------------------------------------------------------
 if ($action === 'approve') {
     $data = json_decode(file_get_contents("php://input"));
@@ -43,13 +46,17 @@ if ($action === 'approve') {
         exit();
     }
 
+    // 2. ADDED: Extract the payment amount and student ID sent from our tuition.php UI
+    $amount_paid = isset($data->amount) ? (float)$data->amount : 0.00;
+    $student_id = isset($data->student_id) ? $data->student_id : null;
+
     $successCount = 0;
     $lastError = "";
 
     // Loop through every class the student is enrolling in and approve it
     foreach ($data->enrollment_ids as $eid) {
         
-        // FIX: The LMS expects strict JSON, not Form Data!
+        // The LMS expects strict JSON, not Form Data!
         $postData = json_encode([
             'enrollment_id' => $eid,
             'status'        => 'Approved'
@@ -64,7 +71,7 @@ if ($action === 'approve') {
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
         curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)');
         
-        // FIX: Tell the LMS server that we are sending JSON data
+        // Tell the LMS server that we are sending JSON data
         curl_setopt($ch, CURLOPT_HTTPHEADER, [
             'Content-Type: application/json',
             'Content-Length: ' . strlen($postData)
@@ -83,9 +90,46 @@ if ($action === 'approve') {
 
     // If at least one class was approved, we consider it a success!
     if ($successCount > 0) {
-        echo json_encode(['status' => 'success', 'message' => "$successCount subjects approved."]);
+        
+        // ==========================================
+        // 3. ADDED: FINANCE SYNC (AUTOMATIC TUITION)
+        // ==========================================
+        if ($amount_paid > 0) {
+            try {
+                // We use a fallback of 0 if the LMS didn't give us a valid student_id
+                $db_student_id = $student_id ? $student_id : 0; 
+
+                // A. Log the receipt in the student payments table
+                $payStmt = $pdo->prepare("
+                    INSERT INTO student_payments (student_id, amount, payment_date, description, status) 
+                    VALUES (:student_id, :amount, NOW(), 'Enrollment Approved', 'Paid')
+                ");
+                $payStmt->execute([
+                    'student_id' => $db_student_id,
+                    'amount'     => $amount_paid
+                ]);
+
+                // B. Log it into the Master Ledger (Assuming Account ID 1 is Cash/Bank)
+                $ledgerStmt = $pdo->prepare("
+                    INSERT INTO transactions (trans_date, account_id, description, amount, type) 
+                    VALUES (NOW(), 1, CONCAT('Enrollment Tuition - Student ID: ', :student_id), :amount, 'Credit')
+                ");
+                $ledgerStmt->execute([
+                    'student_id' => $db_student_id,
+                    'amount'     => $amount_paid
+                ]);
+
+            } catch (PDOException $e) {
+                // If local DB fails (e.g. unknown student_id), we catch the error but still tell the user the LMS succeeded
+                echo json_encode(['status' => 'success', 'message' => "$successCount subjects approved, but Local Finance Sync failed: " . $e->getMessage()]);
+                exit();
+            }
+        }
+
+        echo json_encode(['status' => 'success', 'message' => "$successCount subjects approved and Finance Ledger updated!"]);
     } else {
         echo json_encode(['status' => 'error', 'message' => "LMS rejected the approval. Details: " . $lastError]);
     }
     exit();
 }
+?>
