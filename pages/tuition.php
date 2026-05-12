@@ -234,30 +234,32 @@ try {
                             let idsJson = JSON.stringify(enrollmentIds);
 
                             // UPDATED UI: We added a dynamic input box next to the approve button!
-                            html += `
-                                <tr>
-                                    <td class="ps-4">
-                                        <div class="fw-bold text-dark text-capitalize">${studentName}</div>
-                                        <div class="small text-muted">${studentEmail}</div>
-                                    </td>
-                                    <td>
-                                        <div class="fw-semibold text-primary small"><i class="bi bi-journal-text me-1"></i>${subjectCount} Subjects (${totalUnits} Units)</div>
-                                        <div class="text-muted" style="font-size: 0.70rem;">${courseCodes.join(', ')}</div>
-                                    </td>
-                                    <td><span class="badge bg-warning text-dark">Pending</span></td>
-                                    <td class="text-end pe-4">
-                                        <div class="d-flex justify-content-end align-items-center gap-1">
-                                            <div class="input-group input-group-sm" style="width: 140px;">
-                                                <span class="input-group-text bg-light border-success text-success">₱</span>
-                                                <input type="number" class="form-control border-success payment-amount-input" placeholder="Amount" value="5000" min="1">
-                                            </div>
-                                            <button class="btn btn-sm btn-success btn-approve" data-ids='${idsJson}' data-studentid='${localStudentId}'>
-                                                <i class="bi bi-check-lg"></i>
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            `;
+                           html += `
+    <tr>
+        <td class="ps-4">
+            <div class="fw-bold text-dark text-capitalize">${studentName}</div>
+            <div class="small text-muted">${studentEmail}</div>
+        </td>
+        <td>
+            <div class="fw-semibold text-primary small"><i class="bi bi-journal-text me-1"></i>${subjectCount} Subjects (${totalUnits} Units)</div>
+            <div class="text-muted" style="font-size: 0.70rem;">${courseCodes.join(', ')}</div>
+        </td>
+        <td><span class="badge bg-warning text-dark">Pending</span></td>
+        <td class="text-end pe-4">
+            <div class="d-flex justify-content-end align-items-center gap-1">
+                <div class="input-group input-group-sm" style="width: 140px;">
+                    <span class="input-group-text bg-light border-success text-success">₱</span>
+                    <input type="number" class="form-control border-success payment-amount-input" placeholder="Amount" value="5000" min="1">
+                </div>
+                <button class="btn btn-sm btn-success btn-approve" 
+                        data-ids='${idsJson}' 
+                        data-studentid='${localStudentId}' 
+                        data-studentname='${studentName}'> <i class="bi bi-check-lg"></i>
+                </button>
+            </div>
+        </td>
+    </tr>
+`;
                         });
                     } else {
                         html = '<tr><td colspan="4" class="text-center py-4 text-muted">No pending enrollments from the LMS to approve.</td></tr>';
@@ -273,30 +275,22 @@ try {
         }
 
         // 2. Handle the "Approve" button click
-        $(document).on('click', '.btn-approve', function() {
-            let eIds = $(this).data('ids');
-            let sId = $(this).data('studentid');
-            
-            // Look into this specific row and grab the amount the user typed!
-            let amountPaid = $(this).closest('td').find('.payment-amount-input').val();
-            
-            if(!amountPaid || amountPaid <= 0) {
-                alert("Please enter a valid tuition amount.");
-                return;
-            }
+       $(document).on('click', '.btn-approve', function() {
+    let eIds = $(this).data('ids');
+    let sId = $(this).data('studentid');
+    let sName = $(this).data('studentname'); // Capture the name
+    let amountPaid = $(this).closest('td').find('.payment-amount-input').val();
 
-            let $btn = $(this);
-            $btn.html('<span class="spinner-border spinner-border-sm"></span>').prop('disabled', true);
-
-            $.ajax({
-                url: '../api/lms_api.php?action=approve',
-                type: 'POST',
-                // We are now sending BOTH the enrollment IDs AND the collected amount!
-                data: JSON.stringify({ 
-                    enrollment_ids: eIds, 
-                    student_id: sId,
-                    amount: parseFloat(amountPaid) 
-                }), 
+    // ... ajax call ...
+    $.ajax({
+        url: '../api/lms_api.php?action=approve',
+        type: 'POST',
+        data: JSON.stringify({ 
+            enrollment_ids: eIds, 
+            student_id: sId,
+            student_name: sName, // Send the name to the backend
+            amount: parseFloat(amountPaid) 
+        }),
                 contentType: 'application/json',
                 success: function(response) {
                     if (response.status === 'success' || response.success) {
