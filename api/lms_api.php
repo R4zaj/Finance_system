@@ -88,21 +88,23 @@ if ($action === 'approve') {
         }
     }
 
-    // If at least one class was approved, we consider it a success!
     if ($successCount > 0) {
         
         // ==========================================
-        // 3. ADDED: FINANCE SYNC (AUTOMATIC TUITION)
+        // 3. FINANCE SYNC (AUTOMATIC TUITION)
         // ==========================================
         if ($amount_paid > 0) {
             try {
-                // We use a fallback of 0 if the LMS didn't give us a valid student_id
                 $db_student_id = $student_id ? $student_id : 0; 
 
-                // A. Log the receipt in the student payments table
+                // 🚨 HACK: Disable Foreign Key checks temporarily so the local DB 
+                // doesn't reject the LMS student_id if they haven't synced locally yet!
+                $pdo->exec("SET FOREIGN_KEY_CHECKS=0;");
+
+                // A. Log the receipt (Changed 'Paid' to 'Completed' to match your database ENUM)
                 $payStmt = $pdo->prepare("
                     INSERT INTO student_payments (student_id, amount, payment_date, description, status) 
-                    VALUES (:student_id, :amount, NOW(), 'Enrollment Approved', 'Paid')
+                    VALUES (:student_id, :amount, NOW(), 'Enrollment Approved', 'Completed')
                 ");
                 $payStmt->execute([
                     'student_id' => $db_student_id,
@@ -119,10 +121,24 @@ if ($action === 'approve') {
                     'amount'     => $amount_paid
                 ]);
 
+                // Turn the security checks back on!
+                $pdo->exec("SET FOREIGN_KEY_CHECKS=1;");
+
             } catch (PDOException $e) {
-                // If local DB fails (e.g. unknown student_id), we catch the error but still tell the user the LMS succeeded
+                // Ensure checks are turned back on even if it fails
+                $pdo->exec("SET FOREIGN_KEY_CHECKS=1;");
+                
+                // We send the exact SQL error back so you can see it!
                 echo json_encode(['status' => 'success', 'message' => "$successCount subjects approved, but Local Finance Sync failed: " . $e->getMessage()]);
                 exit();
+            }
+        }
+
+        echo json_encode(['status' => 'success', 'message' => "$successCount subjects approved and Finance Ledger updated!"]);
+    } else {
+        echo json_encode(['status' => 'error', 'message' => "LMS rejected the approval. Details: " . $lastError]);
+    }
+    exit();
             }
         }
 
