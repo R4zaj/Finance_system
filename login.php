@@ -153,16 +153,7 @@
             </button>
         </form>
 
-        <!-- Demo Credentials -->
-        <div class="demo-area p-3 text-center">
-            <p class="small text-muted mb-2"><i class="far fa-clock me-1"></i> Demo Credentials (click to fill)</p>
-            <div class="d-flex flex-wrap justify-content-center gap-2">
-                <span class="badge bg-success demo-badge">admin</span>
-                <span class="badge bg-primary demo-badge">john.smith</span>
-                <span class="badge bg-info demo-badge">sarah.johnson</span>
-                <span class="badge bg-warning text-dark demo-badge">finance_head</span>
-            </div>
-        </div>
+      
 
     </div>
 
