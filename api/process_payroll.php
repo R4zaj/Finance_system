@@ -17,7 +17,7 @@ try {
     $pdo->beginTransaction();
 
     // 1. FIX: Changed 'id' to 'employee_id' to match your database!
-    $stmtEmp = $pdo->query("SELECT employee_id, salary FROM employees WHERE status = 'Active'");
+   $stmtEmp = $pdo->query("SELECT employee_id, salary FROM employees");
     $employees = $stmtEmp->fetchAll(PDO::FETCH_ASSOC);
 
     if (empty($employees)) {
