@@ -16,8 +16,8 @@ $pay_period = $data->pay_period ?? date('Y-m'); // e.g., "2026-05"
 try {
     $pdo->beginTransaction();
 
-    // 1. FIX: Changed 'id' to 'employee_id' to match your database!
-   $stmtEmp = $pdo->query("SELECT employee_id, salary FROM employees");
+    // 1. Fetch all employees
+    $stmtEmp = $pdo->query("SELECT employee_id, salary FROM employees");
     $employees = $stmtEmp->fetchAll(PDO::FETCH_ASSOC);
 
     if (empty($employees)) {
@@ -27,10 +27,10 @@ try {
     $total_gross = 0;
     $total_net = 0;
 
-    // 2. FIX: Adjusted 'gross_pay' to 'gross_amount' and 'payment_date' to 'pay_date'
+    // 2. FIX: Removed 'pay_period' from this query since your DB doesn't use it!
     $insertPayment = $pdo->prepare("
-        INSERT INTO employee_payments (employee_id, pay_period, gross_amount, deductions, net_amount, pay_date) 
-        VALUES (:emp_id, :period, :gross, :deductions, :net, CURRENT_DATE)
+        INSERT INTO employee_payments (employee_id, gross_amount, deductions, net_amount, pay_date) 
+        VALUES (:emp_id, :gross, :deductions, :net, CURRENT_DATE)
     ");
 
     foreach ($employees as $emp) {
@@ -40,11 +40,11 @@ try {
         $net = $gross - $deductions;
 
         $insertPayment->execute([
-            'emp_id'     => $emp['employee_id'], // FIX: Pulling 'employee_id' instead of 'id'
-            'period'     => $pay_period,
+            'emp_id'     => $emp['employee_id'],
             'gross'      => $gross,
             'deductions' => $deductions,
             'net'        => $net
+            // Removed 'period' from here as well
         ]);
 
         $total_gross += $gross;
@@ -59,13 +59,14 @@ try {
     $expense_account = array_search('Salary Expense', $accounts) ?: array_key_first($accounts);
     $cash_account = array_search('Cash in Bank', $accounts) ?: array_key_last($accounts);
 
+    // We still use the pay period here so it shows up nicely in your Ledger!
     $glDesc = "Master Payroll Run for period: " . $pay_period;
 
     // Debit: Salary Expense (Using Gross Pay)
     $stmtGL = $pdo->prepare("INSERT INTO transactions (account_id, trans_date, amount, type, description) VALUES (?, CURRENT_DATE, ?, 'Debit', ?)");
     $stmtGL->execute([$expense_account, $total_gross, $glDesc]);
 
-    // Credit: Cash (Using Net Pay - assuming deductions are payable to tax agencies later)
+    // Credit: Cash (Using Net Pay)
     $stmtGL = $pdo->prepare("INSERT INTO transactions (account_id, trans_date, amount, type, description) VALUES (?, CURRENT_DATE, ?, 'Credit', ?)");
     $stmtGL->execute([$cash_account, $total_net, $glDesc]);
 
