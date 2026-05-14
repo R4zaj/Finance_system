@@ -1,5 +1,8 @@
 $(document).ready(function() {
     
+    // NEW: A memory array to track exactly what you just clicked during this session!
+    window.recentlyProcessed = window.recentlyProcessed || [];
+
     // =================================================================
     // 1. MAIN PAGE: LOAD PROCESSED PO HISTORY ON LOAD
     // =================================================================
@@ -19,12 +22,27 @@ $(document).ready(function() {
                     // 1. FILTER: Keep ONLY the processed POs
                     let processedPOs = response.data.filter(po => po.status !== 'Pending' && po.status !== 'Draft');
 
-                    // 2. SORT: Force the newest updates to the top of the list!
+                    // 2. SORT: Force recently clicked items to the top!
                     processedPOs.sort(function(a, b) {
-                        // Check for update timestamps, fallback to order_date if necessary
-                        let dateA = new Date(a.updated_at || a.approved_date || a.order_date || 0).getTime();
-                        let dateB = new Date(b.updated_at || b.approved_date || b.order_date || 0).getTime();
-                        return dateB - dateA; // Sorts Descending (Newest First)
+                        // Check if either PO was just clicked by you
+                        let aIsRecent = window.recentlyProcessed.includes(a.po_id) ? 1 : 0;
+                        let bIsRecent = window.recentlyProcessed.includes(b.po_id) ? 1 : 0;
+                        
+                        // If one was just clicked and the other wasn't, push the clicked one to the top!
+                        if (aIsRecent !== bIsRecent) {
+                            return bIsRecent - aIsRecent;
+                        }
+
+                        // Otherwise, fallback to trying to sort by dates
+                        let dateA = new Date(a.updated_at || a.last_updated || a.order_date).getTime() || 0;
+                        let dateB = new Date(b.updated_at || b.last_updated || b.order_date).getTime() || 0;
+                        
+                        if (dateA !== dateB) {
+                            return dateB - dateA;
+                        } else {
+                            // If dates tie, at least put the highest PO number first
+                            return parseInt(b.po_id) - parseInt(a.po_id);
+                        }
                     });
 
                     // 3. DRAW THE TABLE
@@ -33,8 +51,11 @@ $(document).ready(function() {
                         if(po.status === 'Approved' || po.status === 'Received') badgeColor = 'bg-success';
                         if(po.status === 'Cancelled') badgeColor = 'bg-danger';
 
+                        // Optional: Add a slight highlight to items you literally JUST processed
+                        let isHighlighted = window.recentlyProcessed.includes(po.po_id) ? 'bg-success bg-opacity-10' : '';
+
                         html += `
-                            <tr>
+                            <tr class="${isHighlighted}">
                                 <td class="ps-4 fw-bold text-dark">#PO-${po.po_id}</td>
                                 <td>
                                     <div class="fw-semibold text-dark">${po.supplier_name}</div>
@@ -68,7 +89,6 @@ $(document).ready(function() {
         loadPendingPOs();
     });
 
-    // Fix for the "aria-hidden" browser warning!
     $('#poApprovalModal').on('hide.bs.modal', function () {
         if (document.activeElement && $.contains(this, document.activeElement)) {
             document.activeElement.blur();
@@ -170,6 +190,9 @@ $(document).ready(function() {
             success: function(response) {
                 if (response.status === 'success' || response.success) {
                     
+                    // NEW: Add this PO to the browser's memory so it gets sorted to the top!
+                    window.recentlyProcessed.push(poId);
+
                     $row.fadeOut(300, function() {
                         $(this).remove();
                         if ($('#pendingPOsBody tr').length === 0) {
@@ -177,7 +200,6 @@ $(document).ready(function() {
                         }
                     });
 
-                    // THE FIX: Wait 1.5 seconds for external API to process before reloading the table!
                     setTimeout(function() {
                         loadPOHistory();
                     }, 1500);
