@@ -91,21 +91,23 @@ if ($action === 'update_status') {
 
                 // C. MASTER LEDGER UPDATE (Double-Entry Bookkeeping)
                 if ($poAmount > 0) {
-                    // Dynamically find Accounts Payable (Credit)
+                    // Dynamically find Accounts Payable (Liability)
                     $stmtAP = $pdo->query("SELECT account_id FROM accounts WHERE name LIKE '%Payable%' LIMIT 1");
                     $ap_acc = $stmtAP->fetchColumn() ?: 4;
                     
-                    // Dynamically find Expense/Purchases (Debit)
+                    // Dynamically find Expense/Purchases (Expense)
                     $stmtExp = $pdo->query("SELECT account_id FROM accounts WHERE name LIKE '%Purchases%' OR name LIKE '%Expense%' OR name LIKE '%Supplies%' LIMIT 1");
                     $exp_acc = $stmtExp->fetchColumn() ?: 5;
                     
-                    $glDesc = "Procurement Approved: " . $suppName . " (PO #" . $data->po_id . ")";
+                    // Distinct labels so you can see exactly what is happening!
+                    $expenseDesc = "Procurement Expense: " . $suppName . " (PO #" . $data->po_id . ")";
+                    $liabilityDesc = "Accounts Payable (Pending Liability): " . $suppName . " (PO #" . $data->po_id . ")";
                     
-                    // Debit Expense (Recognize the new cost)
-                    $pdo->prepare("INSERT INTO transactions (account_id, trans_date, amount, type, description) VALUES (?, CURDATE(), ?, 'Debit', ?)")->execute([$exp_acc, $poAmount, $glDesc]);
+                    // Debit Expense (Recognizes the school's new cost)
+                    $pdo->prepare("INSERT INTO transactions (account_id, trans_date, amount, type, description) VALUES (?, CURDATE(), ?, 'Debit', ?)")->execute([$exp_acc, $poAmount, $expenseDesc]);
                     
-                    // Credit Accounts Payable (Recognize you owe this money)
-                    $pdo->prepare("INSERT INTO transactions (account_id, trans_date, amount, type, description) VALUES (?, CURDATE(), ?, 'Credit', ?)")->execute([$ap_acc, $poAmount, $glDesc]);
+                    // Credit Accounts Payable (Recognizes that we haven't paid the cash yet)
+                    $pdo->prepare("INSERT INTO transactions (account_id, trans_date, amount, type, description) VALUES (?, CURDATE(), ?, 'Credit', ?)")->execute([$ap_acc, $poAmount, $liabilityDesc]);
                 }
                 
                 $pdo->exec("SET FOREIGN_KEY_CHECKS=1;");
