@@ -89,12 +89,18 @@ if ($action === 'update_status') {
                 ");
                 $insPO->execute([$data->po_id, $suppId, $poAmount]);
 
-                // C. MASTER LEDGER UPDATE (Double-Entry Bookkeeping)
-                // C. MASTER LEDGER UPDATE (Single-Entry: Expense Only)
+                /// C. MASTER LEDGER UPDATE (Single-Entry: Expense Only)
                 if ($poAmount > 0) {
-                    // Dynamically find Expense/Purchases (Expense)
-                    $stmtExp = $pdo->query("SELECT account_id FROM accounts WHERE name LIKE '%Purchases%' OR name LIKE '%Expense%' OR name LIKE '%Supplies%' LIMIT 1");
-                    $exp_acc = $stmtExp->fetchColumn() ?: 5;
+                    
+                    // 1. FIRST PRIORITY: Look strictly for Supplies, Purchases, or Procurement
+                    $stmtExp = $pdo->query("SELECT account_id FROM accounts WHERE name LIKE '%Supplies%' OR name LIKE '%Purchases%' OR name LIKE '%Procurement%' LIMIT 1");
+                    $exp_acc = $stmtExp->fetchColumn();
+                    
+                    // 2. SECOND PRIORITY: If no specific supplies account exists, find a generic Expense account, but EXCLUDE Salary!
+                    if (!$exp_acc) {
+                        $stmtExpFallback = $pdo->query("SELECT account_id FROM accounts WHERE name LIKE '%Expense%' AND name NOT LIKE '%Salary%' LIMIT 1");
+                        $exp_acc = $stmtExpFallback->fetchColumn() ?: 5; // Final fallback to ID 5
+                    }
                     
                     // Simple, clean label for your ledger
                     $expenseDesc = "Procurement Expense: " . $suppName . " (PO #" . $data->po_id . ")";
@@ -102,7 +108,6 @@ if ($action === 'update_status') {
                     // Log the Expense (Debit)
                     $pdo->prepare("INSERT INTO transactions (account_id, trans_date, amount, type, description) VALUES (?, CURDATE(), ?, 'Debit', ?)")->execute([$exp_acc, $poAmount, $expenseDesc]);
                     
-                    // Note: The Pending Liability (Accounts Payable) line has been completely removed!
                 }
                 
                 $pdo->exec("SET FOREIGN_KEY_CHECKS=1;");
