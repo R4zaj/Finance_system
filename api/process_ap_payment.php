@@ -30,15 +30,45 @@ try {
     $stmtSupp = $pdo->prepare("SELECT name FROM suppliers WHERE supplier_id = ?");
     $stmtSupp->execute([$data->supplier_id]);
     $supplierName = $stmtSupp->fetchColumn();
+    
+    // Fallback if supplier isn't found
+    if (!$supplierName) $supplierName = "Unknown Vendor";
+    
     $ledgerDesc = "Vendor Payment: " . $supplierName . " (PO #" . $data->po_id . ")";
 
-    // 2. GL Entry: DEBIT Accounts Payable (Account 4 decreases liability)
-    $stmtDebit = $pdo->prepare("INSERT INTO transactions (account_id, trans_date, amount, type, description) VALUES (4, :pdate, :amt, 'Debit', :desc)");
-    $stmtDebit->execute(['pdate' => $data->pay_date, 'amt' => $data->amount, 'desc' => $ledgerDesc]);
+    // ==========================================
+    // 2 & 3. SMART MASTER LEDGER SYNC
+    // ==========================================
+    
+    // We know Account 1 is your Main Cash/Bank account
+    $cash_account = 1; 
 
-    // 3. GL Entry: CREDIT Cash (Account 1 decreases asset)
-    $stmtCredit = $pdo->prepare("INSERT INTO transactions (account_id, trans_date, amount, type, description) VALUES (1, :pdate, :amt, 'Credit', :desc)");
-    $stmtCredit->execute(['pdate' => $data->pay_date, 'amt' => $data->amount, 'desc' => $ledgerDesc]);
+    // Dynamically find your Accounts Payable OR a generic Expense account
+    $stmtAcc = $pdo->query("SELECT account_id FROM accounts WHERE name LIKE '%Payable%' OR name LIKE '%Expense%' OR name LIKE '%Purchases%' LIMIT 1");
+    $ap_expense_account = $stmtAcc->fetchColumn();
+    
+    // If it literally can't find one, fallback to 4 (your original setup)
+    if (!$ap_expense_account) {
+        $ap_expense_account = 4; 
+    }
+
+    // GL Entry: DEBIT Accounts Payable / Expense (Increases expense or decreases liability)
+    $stmtDebit = $pdo->prepare("INSERT INTO transactions (account_id, trans_date, amount, type, description) VALUES (?, :pdate, :amt, 'Debit', :desc)");
+    $stmtDebit->execute([
+        $ap_expense_account,
+        'pdate' => $data->pay_date, 
+        'amt' => $data->amount, 
+        'desc' => $ledgerDesc
+    ]);
+
+    // GL Entry: CREDIT Cash (Decreases asset)
+    $stmtCredit = $pdo->prepare("INSERT INTO transactions (account_id, trans_date, amount, type, description) VALUES (?, :pdate, :amt, 'Credit', :desc)");
+    $stmtCredit->execute([
+        $cash_account,
+        'pdate' => $data->pay_date, 
+        'amt' => $data->amount, 
+        'desc' => $ledgerDesc
+    ]);
 
     $pdo->commit();
     echo json_encode(['success' => true, 'message' => 'Vendor paid and ledger updated successfully.']);
