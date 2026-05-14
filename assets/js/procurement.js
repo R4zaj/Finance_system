@@ -15,29 +15,40 @@ $(document).ready(function() {
             success: function(response) {
                 let html = '';
                 if (response.status === 'success' && response.data && response.data.length > 0) {
-                    $.each(response.data, function(i, po) {
-                        // Filter: Only show POs that are ALREADY processed
-                        if(po.status !== 'Pending' && po.status !== 'Draft') {
-                            let badgeColor = 'bg-secondary';
-                            if(po.status === 'Approved' || po.status === 'Received') badgeColor = 'bg-success';
-                            if(po.status === 'Cancelled') badgeColor = 'bg-danger';
+                    
+                    // 1. FILTER: Keep ONLY the processed POs
+                    let processedPOs = response.data.filter(po => po.status !== 'Pending' && po.status !== 'Draft');
 
-                            html += `
-                                <tr>
-                                    <td class="ps-4 fw-bold text-dark">#PO-${po.po_id}</td>
-                                    <td>
-                                        <div class="fw-semibold text-dark">${po.supplier_name}</div>
-                                        <div class="small text-muted">
-                                            <i class="bi bi-box-seam me-1"></i>${po.item_qty}x ${po.item_name}
-                                        </div>
-                                    </td>
-                                    <td class="text-muted small">${po.order_date}</td>
-                                    <td class="text-end fw-semibold">₱${parseFloat(po.total_amount).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
-                                    <td><span class="badge ${badgeColor}">${po.status}</span></td>
-                                </tr>
-                            `;
-                        }
+                    // 2. SORT: Force the newest updates to the top of the list!
+                    processedPOs.sort(function(a, b) {
+                        // Check for update timestamps, fallback to order_date if necessary
+                        let dateA = new Date(a.updated_at || a.approved_date || a.order_date || 0).getTime();
+                        let dateB = new Date(b.updated_at || b.approved_date || b.order_date || 0).getTime();
+                        return dateB - dateA; // Sorts Descending (Newest First)
                     });
+
+                    // 3. DRAW THE TABLE
+                    $.each(processedPOs, function(i, po) {
+                        let badgeColor = 'bg-secondary';
+                        if(po.status === 'Approved' || po.status === 'Received') badgeColor = 'bg-success';
+                        if(po.status === 'Cancelled') badgeColor = 'bg-danger';
+
+                        html += `
+                            <tr>
+                                <td class="ps-4 fw-bold text-dark">#PO-${po.po_id}</td>
+                                <td>
+                                    <div class="fw-semibold text-dark">${po.supplier_name}</div>
+                                    <div class="small text-muted">
+                                        <i class="bi bi-box-seam me-1"></i>${po.item_qty}x ${po.item_name}
+                                    </div>
+                                </td>
+                                <td class="text-muted small">${po.order_date}</td>
+                                <td class="text-end fw-semibold">₱${parseFloat(po.total_amount).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                                <td><span class="badge ${badgeColor}">${po.status}</span></td>
+                            </tr>
+                        `;
+                    });
+
                     if (html === '') html = '<tr><td colspan="5" class="text-center py-4 text-muted">No processed Purchase Orders found.</td></tr>';
                 } else {
                     html = '<tr><td colspan="5" class="text-center py-4 text-muted">No records found in the Inventory System.</td></tr>';
@@ -77,10 +88,8 @@ $(document).ready(function() {
                     $.each(response.data, function(i, po) {
                         if(po.status === 'Pending') {
                             
-                            // Extract supplier ID if it exists, otherwise fallback to 999
                             let suppId = po.supplier_id ? po.supplier_id : 999;
 
-                            // NEW: Added data-amount, data-suppname, and data-suppid to the buttons!
                             html += `
                                 <tr>
                                     <td class="ps-4 fw-bold text-primary">#PO-${po.po_id}</td>
@@ -138,7 +147,6 @@ $(document).ready(function() {
         let poId = $(this).data('id');
         let newStatus = $(this).data('status');
         
-        // NEW: Grab the extra data needed for the Finance Ledger!
         let poAmount = $(this).data('amount');
         let suppName = $(this).data('suppname');
         let suppId = $(this).data('suppid');
@@ -151,7 +159,6 @@ $(document).ready(function() {
         $.ajax({
             url: '../api/procurement_api.php?action=update_status',
             type: 'POST',
-            // NEW: Send everything to the PHP file!
             data: JSON.stringify({ 
                 po_id: poId, 
                 new_status: newStatus,
@@ -170,7 +177,10 @@ $(document).ready(function() {
                         }
                     });
 
-                    loadPOHistory();
+                    // THE FIX: Wait 1.5 seconds for external API to process before reloading the table!
+                    setTimeout(function() {
+                        loadPOHistory();
+                    }, 1500);
 
                 } else {
                     alert('Inventory System Error: ' + (response.message || 'Update failed'));
