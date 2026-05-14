@@ -16,10 +16,8 @@ $(document).ready(function() {
                 let html = '';
                 if (response.status === 'success' && response.data && response.data.length > 0) {
                     $.each(response.data, function(i, po) {
-                        // Filter: Only show POs that are ALREADY processed (Approved, Received, Cancelled)
+                        // Filter: Only show POs that are ALREADY processed
                         if(po.status !== 'Pending' && po.status !== 'Draft') {
-                            
-                            // Determine badge color based on status
                             let badgeColor = 'bg-secondary';
                             if(po.status === 'Approved' || po.status === 'Received') badgeColor = 'bg-success';
                             if(po.status === 'Cancelled') badgeColor = 'bg-danger';
@@ -59,6 +57,13 @@ $(document).ready(function() {
         loadPendingPOs();
     });
 
+    // Fix for the "aria-hidden" browser warning!
+    $('#poApprovalModal').on('hide.bs.modal', function () {
+        if (document.activeElement && $.contains(this, document.activeElement)) {
+            document.activeElement.blur();
+        }
+    });
+
     function loadPendingPOs() {
         $('#pendingPOsBody').html('<tr><td colspan="6" class="text-center py-4"><span class="spinner-border spinner-border-sm me-2"></span>Syncing pending items...</td></tr>');
         
@@ -70,8 +75,12 @@ $(document).ready(function() {
                 let html = '';
                 if (response.status === 'success' && response.data && response.data.length > 0) {
                     $.each(response.data, function(i, po) {
-                        // Filter: ONLY show 'Pending' items
                         if(po.status === 'Pending') {
+                            
+                            // Extract supplier ID if it exists, otherwise fallback to 999
+                            let suppId = po.supplier_id ? po.supplier_id : 999;
+
+                            // NEW: Added data-amount, data-suppname, and data-suppid to the buttons!
                             html += `
                                 <tr>
                                     <td class="ps-4 fw-bold text-primary">#PO-${po.po_id}</td>
@@ -88,10 +97,20 @@ $(document).ready(function() {
                                     <td><span class="badge bg-warning text-dark">Pending</span></td>
                                     <td class="text-end pe-4">
                                         <div class="btn-group">
-                                            <button class="btn btn-sm btn-success btn-update-po" data-id="${po.po_id}" data-status="Approved">
+                                            <button class="btn btn-sm btn-success btn-update-po" 
+                                                data-id="${po.po_id}" 
+                                                data-status="Approved"
+                                                data-amount="${po.total_amount}"
+                                                data-suppname="${po.supplier_name}"
+                                                data-suppid="${suppId}">
                                                 <i class="bi bi-check-lg"></i> Approve
                                             </button>
-                                            <button class="btn btn-sm btn-outline-danger btn-update-po" data-id="${po.po_id}" data-status="Cancelled">
+                                            <button class="btn btn-sm btn-outline-danger btn-update-po" 
+                                                data-id="${po.po_id}" 
+                                                data-status="Cancelled"
+                                                data-amount="0"
+                                                data-suppname="${po.supplier_name}"
+                                                data-suppid="${suppId}">
                                                 <i class="bi bi-x-lg"></i> Cancel
                                             </button>
                                         </div>
@@ -118,21 +137,32 @@ $(document).ready(function() {
     $(document).on('click', '.btn-update-po', function() {
         let poId = $(this).data('id');
         let newStatus = $(this).data('status');
+        
+        // NEW: Grab the extra data needed for the Finance Ledger!
+        let poAmount = $(this).data('amount');
+        let suppName = $(this).data('suppname');
+        let suppId = $(this).data('suppid');
+
         let $row = $(this).closest('tr');
         
-        // Disable buttons and show spinner
         $(this).html('<span class="spinner-border spinner-border-sm"></span>').prop('disabled', true);
         $(this).siblings('button').prop('disabled', true);
 
         $.ajax({
             url: '../api/procurement_api.php?action=update_status',
             type: 'POST',
-            data: JSON.stringify({ po_id: poId, new_status: newStatus }),
+            // NEW: Send everything to the PHP file!
+            data: JSON.stringify({ 
+                po_id: poId, 
+                new_status: newStatus,
+                amount: parseFloat(poAmount) || 0,
+                supplier_name: suppName,
+                supplier_id: suppId
+            }),
             contentType: 'application/json',
             success: function(response) {
                 if (response.status === 'success' || response.success) {
                     
-                    // Fade out and remove the row from the Modal
                     $row.fadeOut(300, function() {
                         $(this).remove();
                         if ($('#pendingPOsBody tr').length === 0) {
@@ -140,7 +170,6 @@ $(document).ready(function() {
                         }
                     });
 
-                    // IMPORTANT: Refresh the background history table to show the new status!
                     loadPOHistory();
 
                 } else {
