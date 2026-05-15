@@ -89,26 +89,10 @@ if ($action === 'update_status') {
                 ");
                 $insPO->execute([$data->po_id, $suppId, $poAmount]);
 
-                /// C. MASTER LEDGER UPDATE (Single-Entry: Expense Only)
-                if ($poAmount > 0) {
-                    
-                    // 1. FIRST PRIORITY: Look strictly for Supplies, Purchases, or Procurement
-                    $stmtExp = $pdo->query("SELECT account_id FROM accounts WHERE name LIKE '%Supplies%' OR name LIKE '%Purchases%' OR name LIKE '%Procurement%' LIMIT 1");
-                    $exp_acc = $stmtExp->fetchColumn();
-                    
-                    // 2. SECOND PRIORITY: If no specific supplies account exists, find a generic Expense account, but EXCLUDE Salary!
-                    if (!$exp_acc) {
-                        $stmtExpFallback = $pdo->query("SELECT account_id FROM accounts WHERE name LIKE '%Expense%' AND name NOT LIKE '%Salary%' LIMIT 1");
-                        $exp_acc = $stmtExpFallback->fetchColumn() ?: 5; // Final fallback to ID 5
-                    }
-                    
-                    // Simple, clean label for your ledger
-                    $expenseDesc = "Procurement Expense: " . $suppName . " (PO #" . $data->po_id . ")";
-                    
-                    // Log the Expense (Debit)
-                    $pdo->prepare("INSERT INTO transactions (account_id, trans_date, amount, type, description) VALUES (?, CURDATE(), ?, 'Debit', ?)")->execute([$exp_acc, $poAmount, $expenseDesc]);
-                    
-                }
+                // C. BUDGET ENCUMBRANCE ONLY (No Ledger Update!)
+                // We NO LONGER insert into the `transactions` table here.
+                // Just by saving the PO in the line above, the budget is officially "Reserved".
+                // The actual Expense will be logged when you click "Process Payment" in Accounts Payable.
                 
                 $pdo->exec("SET FOREIGN_KEY_CHECKS=1;");
             } catch (Exception $e) {
