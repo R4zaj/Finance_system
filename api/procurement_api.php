@@ -72,6 +72,9 @@ if ($action === 'update_status') {
                 $suppId = isset($data->supplier_id) ? $data->supplier_id : 999;
                 $suppName = isset($data->supplier_name) ? $data->supplier_name : 'External Vendor';
                 
+                // NEW: Capture the Department ID from JavaScript (default to 1 if empty)
+                $deptId = isset($data->department_id) ? (int)$data->department_id : 1;
+                
                 $pdo->exec("SET FOREIGN_KEY_CHECKS=0;");
 
                 // A. Save Supplier Locally (if they don't exist yet)
@@ -82,12 +85,12 @@ if ($action === 'update_status') {
                     $insSupp->execute([$suppId, $suppName]);
                 }
 
-                // B. Save PO Locally so your AP module can see it
+                // B. Save PO Locally WITH the Department ID so the Budget module can see it!
                 $insPO = $pdo->prepare("
-                    INSERT IGNORE INTO purchase_orders (po_id, supplier_id, order_date, total_amount, status) 
-                    VALUES (?, ?, CURDATE(), ?, 'Approved')
+                    INSERT IGNORE INTO purchase_orders (po_id, supplier_id, department_id, order_date, total_amount, status) 
+                    VALUES (?, ?, ?, CURDATE(), ?, 'Approved')
                 ");
-                $insPO->execute([$data->po_id, $suppId, $poAmount]);
+                $insPO->execute([$data->po_id, $suppId, $deptId, $poAmount]);
 
                 // C. BUDGET ENCUMBRANCE ONLY (No Ledger Update!)
                 // We NO LONGER insert into the `transactions` table here.
