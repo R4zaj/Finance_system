@@ -1,6 +1,5 @@
 $(document).ready(function() {
     
-    // NEW: A memory array to track exactly what you just clicked during this session!
     window.recentlyProcessed = window.recentlyProcessed || [];
 
     // =================================================================
@@ -19,39 +18,31 @@ $(document).ready(function() {
                 let html = '';
                 if (response.status === 'success' && response.data && response.data.length > 0) {
                     
-                    // 1. FILTER: Keep ONLY the processed POs
                     let processedPOs = response.data.filter(po => po.status !== 'Pending' && po.status !== 'Draft');
 
-                    // 2. SORT: Force recently clicked items to the top!
                     processedPOs.sort(function(a, b) {
-                        // Check if either PO was just clicked by you
                         let aIsRecent = window.recentlyProcessed.includes(a.po_id) ? 1 : 0;
                         let bIsRecent = window.recentlyProcessed.includes(b.po_id) ? 1 : 0;
                         
-                        // If one was just clicked and the other wasn't, push the clicked one to the top!
                         if (aIsRecent !== bIsRecent) {
                             return bIsRecent - aIsRecent;
                         }
 
-                        // Otherwise, fallback to trying to sort by dates
                         let dateA = new Date(a.updated_at || a.last_updated || a.order_date).getTime() || 0;
                         let dateB = new Date(b.updated_at || b.last_updated || b.order_date).getTime() || 0;
                         
                         if (dateA !== dateB) {
                             return dateB - dateA;
                         } else {
-                            // If dates tie, at least put the highest PO number first
                             return parseInt(b.po_id) - parseInt(a.po_id);
                         }
                     });
 
-                    // 3. DRAW THE TABLE
                     $.each(processedPOs, function(i, po) {
                         let badgeColor = 'bg-secondary';
                         if(po.status === 'Approved' || po.status === 'Received') badgeColor = 'bg-success';
                         if(po.status === 'Cancelled') badgeColor = 'bg-danger';
 
-                        // Optional: Add a slight highlight to items you literally JUST processed
                         let isHighlighted = window.recentlyProcessed.includes(po.po_id) ? 'bg-success bg-opacity-10' : '';
 
                         html += `
@@ -109,6 +100,9 @@ $(document).ready(function() {
                         if(po.status === 'Pending') {
                             
                             let suppId = po.supplier_id ? po.supplier_id : 999;
+                            
+                            // NEW: Grab the department ID from the Inventory data (fallback to 1 if missing)
+                            let deptId = po.department_id ? po.department_id : 1;
 
                             html += `
                                 <tr>
@@ -131,7 +125,8 @@ $(document).ready(function() {
                                                 data-status="Approved"
                                                 data-amount="${po.total_amount}"
                                                 data-suppname="${po.supplier_name}"
-                                                data-suppid="${suppId}">
+                                                data-suppid="${suppId}"
+                                                data-deptid="${deptId}">
                                                 <i class="bi bi-check-lg"></i> Approve
                                             </button>
                                             <button class="btn btn-sm btn-outline-danger btn-update-po" 
@@ -139,7 +134,8 @@ $(document).ready(function() {
                                                 data-status="Cancelled"
                                                 data-amount="0"
                                                 data-suppname="${po.supplier_name}"
-                                                data-suppid="${suppId}">
+                                                data-suppid="${suppId}"
+                                                data-deptid="${deptId}">
                                                 <i class="bi bi-x-lg"></i> Cancel
                                             </button>
                                         </div>
@@ -170,6 +166,9 @@ $(document).ready(function() {
         let poAmount = $(this).data('amount');
         let suppName = $(this).data('suppname');
         let suppId = $(this).data('suppid');
+        
+        // NEW: Grab the Dept ID from the button
+        let deptId = $(this).data('deptid');
 
         let $row = $(this).closest('tr');
         
@@ -184,13 +183,13 @@ $(document).ready(function() {
                 new_status: newStatus,
                 amount: parseFloat(poAmount) || 0,
                 supplier_name: suppName,
-                supplier_id: suppId
+                supplier_id: suppId,
+                department_id: deptId // NEW: Send it to the PHP backend!
             }),
             contentType: 'application/json',
             success: function(response) {
                 if (response.status === 'success' || response.success) {
                     
-                    // NEW: Add this PO to the browser's memory so it gets sorted to the top!
                     window.recentlyProcessed.push(poId);
 
                     $row.fadeOut(300, function() {
